@@ -141,6 +141,7 @@
     form: { name: '', eventTitle: '', email: '', note: '' },
     admin: null,
     adminPatch: null,
+    helpOpen: false,
   };
 
   function readBootstrap() {
@@ -226,6 +227,57 @@
     }).format(start);
     var hm = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
     return date + ' ' + hm.format(start) + ' – ' + hm.format(end);
+  }
+
+  function bookingFacts(booking) {
+    var ul = document.createElement('ul');
+    ul.className = 'booking-facts';
+    function row(label, value) {
+      if (value == null || value === '') return;
+      var li = document.createElement('li');
+      var k = document.createElement('span');
+      k.className = 'k';
+      k.textContent = label;
+      var v = document.createElement('span');
+      v.className = 'v';
+      v.textContent = value;
+      li.appendChild(k);
+      li.appendChild(v);
+      ul.appendChild(li);
+    }
+    row('予定のタイトル', booking.title);
+    row('所要時間', formatDuration(booking.durationMin));
+    var loc = document.createElement('li');
+    var locK = document.createElement('span');
+    locK.className = 'k';
+    locK.textContent = '場所';
+    loc.appendChild(locK);
+    loc.appendChild(locationValue(booking));
+    ul.appendChild(loc);
+    row('予約者', booking.guestName);
+    row('説明', booking.note);
+    return ul;
+  }
+
+  function locationValue(booking) {
+    var v = document.createElement('span');
+    v.className = 'v';
+    if (!booking.withMeet) {
+      v.textContent = 'Meetなし';
+      return v;
+    }
+    var href = safeHref(booking.meetUrl);
+    if (!href) {
+      v.textContent = 'Google Meet';
+      return v;
+    }
+    v.appendChild(document.createTextNode('Google Meet ('));
+    var a = document.createElement('a');
+    a.href = href;
+    a.textContent = booking.meetUrl;
+    v.appendChild(a);
+    v.appendChild(document.createTextNode(')'));
+    return v;
   }
 
   function startsByDay() {
@@ -409,8 +461,24 @@
     if (forId) lab.setAttribute('for', forId);
     lab.textContent = text;
     row.appendChild(lab);
-    if (hint) row.appendChild(helpTip(hint, text));
+    if (hint) {
+      var tip = helpTip(hint, text);
+      if (state.submitting) tip.disabled = true;
+      row.appendChild(tip);
+    }
     return row;
+  }
+
+  function syncDocumentTitle() {
+    var suffix = '予約';
+    if (state.view === 'done') suffix = '予約確定';
+    else if (state.view === 'cancel') suffix = 'キャンセル';
+    else if (state.view === 'admin') suffix = '管理';
+    document.title = 'Slotly - ' + suffix;
+  }
+
+  function bookingPageHref() {
+    return window.location.pathname || '/';
   }
 
   function safeHref(url) {
@@ -419,21 +487,39 @@
     return '';
   }
 
+  function setModalScrollLock(lock) {
+    var html = document.documentElement;
+    var body = document.body;
+    if (lock) {
+      if (!body.classList.contains('is-modal')) {
+        var y = window.scrollY || window.pageYOffset || 0;
+        body.setAttribute('data-scroll-y', String(y));
+        html.classList.add('is-modal');
+        body.classList.add('is-modal');
+        body.style.top = '-' + y + 'px';
+      }
+      return;
+    }
+    if (!body.classList.contains('is-modal')) return;
+    var restore = Number(body.getAttribute('data-scroll-y') || 0);
+    html.classList.remove('is-modal');
+    body.classList.remove('is-modal');
+    body.style.top = '';
+    body.removeAttribute('data-scroll-y');
+    window.scrollTo(0, restore);
+  }
+
   function render() {
+    syncDocumentTitle();
+    setModalScrollLock(!!state.helpOpen || (state.view === 'book' && !!state.selectedStart));
     app.innerHTML = '';
-    if (state.view === 'admin') {
-      app.appendChild(renderAdmin());
-      return;
-    }
-    if (state.view === 'cancel') {
-      app.appendChild(renderCancel());
-      return;
-    }
-    if (state.view === 'done') {
-      app.appendChild(renderDone());
-      return;
-    }
-    app.appendChild(renderBook());
+    var page;
+    if (state.view === 'admin') page = renderAdmin();
+    else if (state.view === 'cancel') page = renderCancel();
+    else if (state.view === 'done') page = renderDone();
+    else page = renderBook();
+    app.appendChild(page);
+    if (state.helpOpen) app.appendChild(renderHelp());
   }
 
   function header(sub) {
@@ -446,13 +532,109 @@
     setText(lede, sub);
     wrap.appendChild(brand);
     wrap.appendChild(lede);
+    var how = document.createElement('button');
+    how.type = 'button';
+    how.className = 'how-open';
+    how.appendChild(icon('help'));
+    var howLabel = document.createElement('span');
+    howLabel.textContent = '使い方';
+    how.appendChild(howLabel);
+    how.addEventListener('click', function () {
+      state.helpOpen = true;
+      render();
+    });
+    wrap.appendChild(how);
     return wrap;
+  }
+
+  function helpCopy() {
+    if (state.view === 'admin') {
+      return [
+        { icons: ['settings'], title: '設定を保存', text: '表示名・受付時間・カレンダーなどを確認して、設定を保存します。' },
+        { icons: ['link', 'lock'], title: 'URL だけ渡す', text: '相手には予約ページの URL だけを渡します。管理キーは渡さないでください。' },
+        { icons: ['event'], title: 'カレンダーに入る', text: '予約が入ると書き込み先カレンダーに予定が増えます。日常の操作はカレンダー側です。' },
+      ];
+    }
+    return [
+      { icons: ['schedule', 'videocam'], title: '時間と場所', text: '所要時間と、Google Meet の有無を選びます。' },
+      { icons: ['calendar_month'], title: '日付と時刻', text: '点が付いている日から、空き時間を選びます。' },
+      { icons: ['person', 'mail'], title: 'お名前とメール', text: 'お名前とメールアドレスを入れて予約を確定します。予定のタイトルと説明は任意です。' },
+      { icons: ['send', 'check_circle'], title: '確定メール', text: '確定メールが届きます。メールのリンクからキャンセルもできます。' },
+    ];
+  }
+
+  function howIcon(name) {
+    var wrap = document.createElement('span');
+    wrap.className = 'how-ico';
+    wrap.appendChild(icon(name));
+    return wrap;
+  }
+
+  function renderHelp() {
+    var bg = document.createElement('div');
+    bg.className = 'drawer-bg help-bg';
+    var box = document.createElement('div');
+    box.className = 'drawer';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-labelledby', 'help-title');
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'icon-btn drawer-close';
+    closeBtn.setAttribute('aria-label', '閉じる');
+    closeBtn.appendChild(icon('close'));
+    closeBtn.addEventListener('click', function () {
+      state.helpOpen = false;
+      render();
+    });
+    var h = document.createElement('h2');
+    h.id = 'help-title';
+    h.textContent = '使い方';
+    var guide = document.createElement('div');
+    guide.className = 'how-guide';
+    var steps = helpCopy();
+    steps.forEach(function (step, i) {
+      var item = document.createElement('div');
+      item.className = 'how-step';
+      var icons = document.createElement('div');
+      icons.className = 'how-icons';
+      icons.setAttribute('aria-hidden', 'true');
+      step.icons.forEach(function (name) {
+        icons.appendChild(howIcon(name));
+      });
+      var body = document.createElement('div');
+      body.className = 'how-body';
+      var title = document.createElement('h3');
+      title.textContent = step.title;
+      var text = document.createElement('p');
+      text.textContent = String(step.text).replace(/。/g, '。\n').replace(/\n+$/, '');
+      body.appendChild(title);
+      body.appendChild(text);
+      item.appendChild(icons);
+      item.appendChild(body);
+      guide.appendChild(item);
+      if (i < steps.length - 1) {
+        var join = document.createElement('div');
+        join.className = 'how-join';
+        join.setAttribute('aria-hidden', 'true');
+        join.appendChild(icon('arrow_downward'));
+        guide.appendChild(join);
+      }
+    });
+    box.appendChild(closeBtn);
+    var inner = document.createElement('div');
+    inner.className = 'drawer-inner';
+    inner.appendChild(h);
+    inner.appendChild(guide);
+    box.appendChild(inner);
+    bg.appendChild(box);
+    return bg;
   }
 
   function renderBook() {
     var shell = document.createElement('div');
     shell.className = 'shell';
-    var host = (state.config && state.config.hostName) ? state.config.hostName + ' の予約' : '空き時間から予約する';
+    var host = (state.config && state.config.hostName) ? state.config.hostName : '空き時間から予約する';
     shell.appendChild(header(host));
 
     if (state.error && !state.selectedStart) {
@@ -664,29 +846,49 @@
     bg.className = 'drawer-bg';
     var box = document.createElement('div');
     box.className = 'drawer';
+    if (state.submitting) {
+      box.classList.add('is-busy');
+      box.setAttribute('aria-busy', 'true');
+    }
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'icon-btn drawer-close';
+    closeBtn.setAttribute('aria-label', '閉じる');
+    closeBtn.appendChild(icon('close'));
+    closeBtn.disabled = !!state.submitting;
+    closeBtn.addEventListener('click', function () {
+      if (state.submitting) return;
+      state.selectedStart = null;
+      state.error = '';
+      render();
+    });
     var h = document.createElement('h2');
     h.textContent = '予約内容';
     var p = document.createElement('p');
     p.className = 'lede';
     setText(p, formatRange(state.selectedStart, new Date(new Date(state.selectedStart).getTime() + state.durationMin * 60000).toISOString()) + ' · ' + (state.withMeet ? 'Google Meet' : 'Meetなし'));
-    box.appendChild(h);
-    box.appendChild(p);
+    box.appendChild(closeBtn);
+    var inner = document.createElement('div');
+    inner.className = 'drawer-inner';
+    inner.appendChild(h);
+    inner.appendChild(p);
     if (state.error) {
       var err = document.createElement('div');
       err.className = 'error';
       setText(err, state.error);
-      box.appendChild(err);
+      inner.appendChild(err);
     }
-    box.appendChild(inputField('お名前', 'name', 'text', 'ホストに表示される予約者の名前です。カレンダー招待にも使います。'));
-    box.appendChild(inputField('予定のタイトル（任意）', 'eventTitle', 'text', 'カレンダーに追加される予定の名前です。空欄の場合自動で決まります。'));
-    box.appendChild(inputField('メールアドレス', 'email', 'email', '予約確定の案内と、カレンダー招待の送付先です。キャンセル時の連絡にも使います。'));
-    box.appendChild(inputField('説明（任意）', 'note', 'textarea', 'ホストへの連絡事項です。カレンダー予定の説明にも入ります。'));
+    inner.appendChild(inputField('お名前', 'name', 'text', '予約者の名前です。カレンダー招待にも使います。'));
+    inner.appendChild(inputField('予定のタイトル（任意）', 'eventTitle', 'text', 'カレンダーに追加されるイベントのタイトルです。空欄の場合自動で決まります。'));
+    inner.appendChild(inputField('メールアドレス', 'email', 'email', '予約確定の案内と、カレンダー招待の送付先です。キャンセル時の連絡にも使います。'));
+    inner.appendChild(inputField('説明（任意）', 'note', 'textarea', 'ホストへの連絡事項です。カレンダー予定の説明にも入ります。'));
     var actions = document.createElement('div');
     actions.className = 'actions';
     var cancel = document.createElement('button');
     cancel.className = 'btn secondary';
     cancel.type = 'button';
     cancel.textContent = '戻る';
+    cancel.disabled = state.submitting;
     cancel.addEventListener('click', function () {
       state.selectedStart = null;
       state.error = '';
@@ -700,14 +902,16 @@
     submit.addEventListener('click', submitBooking);
     actions.appendChild(cancel);
     actions.appendChild(submit);
-    box.appendChild(actions);
+    inner.appendChild(actions);
+    box.appendChild(inner);
+    if (state.submitting) {
+      var mask = document.createElement('div');
+      mask.className = 'drawer-mask';
+      mask.setAttribute('role', 'status');
+      mask.textContent = '予約しています…';
+      box.appendChild(mask);
+    }
     bg.appendChild(box);
-    bg.addEventListener('click', function (ev) {
-      if (ev.target === bg && !state.submitting) {
-        state.selectedStart = null;
-        render();
-      }
-    });
     return bg;
   }
 
@@ -721,6 +925,7 @@
     node.id = id;
     node.name = key;
     node.value = state.form[key];
+    node.disabled = !!state.submitting;
     node.addEventListener('input', function () { state.form[key] = node.value; });
     wrap.appendChild(node);
     return wrap;
@@ -744,41 +949,15 @@
     status.textContent = '確定';
     var h = document.createElement('h2');
     setText(h, formatRange(state.booking.startIso, state.booking.endIso));
-    var meta = document.createElement('p');
-    meta.className = 'lede';
-    setText(meta, formatDuration(state.booking.durationMin) + ' · ' + (state.booking.withMeet ? 'Google Meet' : 'Meetなし'));
     card.appendChild(status);
     card.appendChild(h);
-    if (state.booking.title) {
-      var titleLine = document.createElement('p');
-      titleLine.className = 'lede';
-      setText(titleLine, state.booking.title);
-      card.appendChild(titleLine);
-    }
-    card.appendChild(meta);
-    if (state.booking.meetUrl && safeHref(state.booking.meetUrl)) {
-      var meet = document.createElement('p');
-      var a = document.createElement('a');
-      a.href = state.booking.meetUrl;
-      a.textContent = 'Google Meet を開く';
-      meet.appendChild(a);
-      card.appendChild(meet);
-    }
+    card.appendChild(bookingFacts(state.booking));
     var links = document.createElement('div');
     links.className = 'links';
-    if (state.booking.googleUrl) {
-      var g = document.createElement('a');
-      g.className = 'primary';
-      g.href = state.booking.googleUrl;
-      g.target = '_blank';
-      g.rel = 'noopener';
-      g.textContent = 'Google カレンダーに追加';
-      links.appendChild(g);
-    }
     if (state.booking.icsUrl) {
       var ics = document.createElement('a');
       ics.href = state.booking.icsUrl;
-      ics.textContent = 'その他のカレンダー用にファイルをダウンロード';
+      ics.textContent = 'その他のカレンダー用に ICS ファイルをダウンロード';
       links.appendChild(ics);
     }
     if (state.booking.cancelUrl) {
@@ -787,10 +966,10 @@
       cancel.textContent = 'この予約をキャンセルする';
       links.appendChild(cancel);
     }
-    card.appendChild(links);
+    if (links.childNodes.length) card.appendChild(links);
     var note = document.createElement('p');
     note.className = 'notice';
-    note.textContent = '招待メールも送っています。Gmail の場合、承諾するとカレンダーに入ります。この画面またはメールのリンクからキャンセルできます。';
+    note.textContent = '確定メールを送りました。メール内のリンクからもキャンセルできます。';
     card.appendChild(note);
     shell.appendChild(card);
     return shell;
@@ -823,6 +1002,7 @@
       setText(h, formatRange(state.booking.startIso, state.booking.endIso));
       card.appendChild(status);
       card.appendChild(h);
+      card.appendChild(bookingFacts(state.booking));
       if (state.booking.status !== 'cancelled') {
         var p = document.createElement('p');
         p.className = 'lede';
@@ -851,6 +1031,19 @@
         });
         actions.appendChild(btn);
         card.appendChild(actions);
+      } else {
+        var againLede = document.createElement('p');
+        againLede.className = 'lede';
+        againLede.textContent = '別の日時で予約し直すことができます。';
+        card.appendChild(againLede);
+        var againActions = document.createElement('div');
+        againActions.className = 'actions';
+        var again = document.createElement('a');
+        again.className = 'btn';
+        again.href = bookingPageHref();
+        again.textContent = '新しく予約する';
+        againActions.appendChild(again);
+        card.appendChild(againActions);
       }
     }
     shell.appendChild(card);

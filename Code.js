@@ -1,5 +1,13 @@
 var APP_NAME = 'Slotly';
 
+function pageTitle_(page) {
+  var suffix = '予約';
+  if (page === 'done') suffix = '予約確定';
+  else if (page === 'cancel') suffix = 'キャンセル';
+  else if (page === 'admin') suffix = '管理';
+  return APP_NAME + ' - ' + suffix;
+}
+
 function doGet(e) {
   e = e || { parameter: {} };
   var page = e.parameter.page || 'book';
@@ -10,6 +18,8 @@ function doGet(e) {
   }
 
   var template = HtmlService.createTemplateFromFile('Index');
+  var title = pageTitle_(page);
+  template.pageTitle = title;
   template.bootstrapJson = JSON.stringify({
     page: page,
     token: token,
@@ -18,7 +28,7 @@ function doGet(e) {
 
   return template
     .evaluate()
-    .setTitle(APP_NAME)
+    .setTitle(title)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }

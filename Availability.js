@@ -52,16 +52,32 @@ function isBlocked_(start, end, busy, bufferMin) {
   return false;
 }
 
+function shortCacheKey_(raw) {
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_1, raw);
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) {
+    var v = bytes[i];
+    if (v < 0) v += 256;
+    var part = v.toString(16);
+    hex += part.length === 1 ? '0' + part : part;
+  }
+  return 'busy:' + hex;
+}
+
 function getBusyBlocks_(settings, windowStart, windowEnd) {
   var ids = settings.busyCalendarIds || [];
   var cache = CacheService.getScriptCache();
-  var cacheKey = 'busy:' + cacheStamp_() + ':' + ids.join(',') + ':' + windowStart.toISOString() + ':' + windowEnd.toISOString();
-  var cached = cache.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached).map(function (b) {
-      return { start: new Date(b.start), end: new Date(b.end) };
-    });
-  }
+  var cacheKey = shortCacheKey_(
+    cacheStamp_() + ':' + ids.join(',') + ':' + windowStart.toISOString() + ':' + windowEnd.toISOString(),
+  );
+  try {
+    var cached = cache.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached).map(function (b) {
+        return { start: new Date(b.start), end: new Date(b.end) };
+      });
+    }
+  } catch (ignore) {}
 
   var busy = queryBusy_(ids, windowStart, windowEnd);
   try {

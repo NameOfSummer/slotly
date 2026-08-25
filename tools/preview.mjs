@@ -48,9 +48,15 @@ function include(name) {
   return fs.readFileSync(path.join(ROOT, name + '.html'), 'utf8');
 }
 
+function pageTitle(page) {
+  const suffix = { done: '予約確定', cancel: 'キャンセル', admin: '管理' }[page] || '予約';
+  return 'Slotly - ' + suffix;
+}
+
 function renderIndex(page, token) {
   let html = fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8');
   html = html.replace(/<\?!= include\('([^']+)'\); \?>/g, (_, name) => include(name));
+  html = html.replace(/<\?!= pageTitle \?>/g, pageTitle(page));
   html = html.replace(
     /<\?!= bootstrapJson \?>/g,
     JSON.stringify({ page: page, token: token, adminKey: page === 'admin' ? 'preview' : '' }),

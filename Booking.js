@@ -35,6 +35,7 @@ function createBooking_(payload) {
     var cancelUrl = webUrl ? webUrl + '?page=cancel&token=' + token : '';
     var icsUrl = webUrl ? webUrl + '?page=ics&token=' + token : '';
     var description = buildEventDescription_({
+      title: title,
       name: name,
       email: email,
       note: note,
@@ -158,12 +159,15 @@ function buildEventTitle_(settings, guestName) {
 function buildEventDescription_(info) {
   var lines = [
     'Slotly からの予約です。',
+  ];
+  if (info.title) lines.push('予定のタイトル: ' + info.title);
+  lines.push(
     '予約者: ' + info.name,
     'メール: ' + info.email,
     '所要時間: ' + formatDurationJa_(info.durationMin),
-    'Google Meet: ' + (info.withMeet ? 'あり' : 'なし'),
-  ];
-  if (info.note) lines.push('メモ: ' + info.note);
+    '場所: ' + formatLocationPlain_(info.withMeet, info.meetUrl),
+  );
+  if (info.note) lines.push('説明: ' + info.note);
   if (info.cancelUrl) {
     lines.push('');
     lines.push('キャンセル: ' + info.cancelUrl);
@@ -190,8 +194,11 @@ function googleTemplateUrl_(booking) {
 
 function buildGoogleDetails_(booking) {
   var lines = [];
-  if (booking.meetUrl) lines.push('Meet: ' + booking.meetUrl);
-  if (booking.note) lines.push(booking.note);
+  if (booking.title) lines.push('予定のタイトル: ' + booking.title);
+  if (booking.guestName) lines.push('予約者: ' + booking.guestName);
+  if (booking.durationMin) lines.push('所要時間: ' + formatDurationJa_(booking.durationMin));
+  lines.push('場所: ' + formatLocationPlain_(booking.withMeet, booking.meetUrl));
+  if (booking.note) lines.push('説明: ' + booking.note);
   lines.push('予約システム: Slotly');
   return lines.join('\n');
 }
@@ -232,19 +239,43 @@ function buildIcs_(booking) {
   return lines.join('\r\n');
 }
 
+function bookingSummaryHtml_(booking, when) {
+  var lines = [];
+  lines.push('------------------------------');
+  if (booking.title) lines.push('<p>予定のタイトル: ' + escapeHtml_(booking.title) + '</p>');
+  lines.push('<p><strong>' + escapeHtml_(when) + '</strong></p>');
+  lines.push('<p>所要時間: ' + escapeHtml_(formatDurationJa_(booking.durationMin)) + '</p>');
+  lines.push('<p>場所: ' + formatLocationHtml_(booking) + '</p>');
+  if (booking.guestName) lines.push('<p>予約者: ' + escapeHtml_(booking.guestName) + '</p>');
+  if (booking.note) {
+    lines.push('<p>説明:<br>' + escapeHtml_(booking.note).replace(/\n/g, '<br>') + '</p>');
+  }
+  lines.push('------------------------------');
+  return lines.join('');
+}
+
+function formatLocationPlain_(withMeet, meetUrl) {
+  if (!withMeet) return 'Meetなし';
+  if (meetUrl) return 'Google Meet (' + meetUrl + ')';
+  return 'Google Meet';
+}
+
+function formatLocationHtml_(booking) {
+  if (!booking.withMeet) return 'Meetなし';
+  if (booking.meetUrl) {
+    var url = escapeHtml_(booking.meetUrl);
+    return 'Google Meet (<a href="' + url + '">' + url + '</a>)';
+  }
+  return 'Google Meet';
+}
+
 function sendGuestEmail_(booking, urls) {
   var when = formatRangeJa_(booking.startIso, booking.endIso);
-  var meetLine = booking.withMeet
-    ? (booking.meetUrl ? '<p>Google Meet: <a href="' + escapeHtml_(booking.meetUrl) + '">' + escapeHtml_(booking.meetUrl) + '</a></p>' : '<p>Google Meet 付きの予定です。招待メールのリンクから参加できます。</p>')
-    : '<p>この予約に Google Meet はありません。</p>';
   var html = [
     '<p>' + escapeHtml_(booking.guestName) + ' さん</p>',
     '<p>Slotly で予約が確定しました。</p>',
-    booking.title ? '<p>予定: ' + escapeHtml_(booking.title) + '</p>' : '',
-    '<p><strong>' + escapeHtml_(when) + '</strong>（' + escapeHtml_(formatDurationJa_(booking.durationMin)) + '）</p>',
-    meetLine,
-    '<p><a href="' + escapeHtml_(urls.googleUrl) + '">Google カレンダーに追加</a></p>',
-    urls.icsUrl ? '<p><a href="' + escapeHtml_(urls.icsUrl) + '">その他のカレンダー用にファイルをダウンロード</a></p>' : '',
+    bookingSummaryHtml_(booking, when),
+    urls.icsUrl ? '<p><a href="' + escapeHtml_(urls.icsUrl) + '">その他のカレンダー用に ICS ファイルをダウンロード</a></p>' : '',
     urls.cancelUrl ? '<p><a href="' + escapeHtml_(urls.cancelUrl) + '">この予約をキャンセルする</a></p>' : '',
   ].join('');
   try {
@@ -267,7 +298,7 @@ function sendCancelEmail_(booking) {
       htmlBody:
         '<p>' + escapeHtml_(booking.guestName) + ' さん</p>' +
         '<p>次の予約をキャンセルしました。</p>' +
-        '<p><strong>' + escapeHtml_(when) + '</strong></p>',
+        bookingSummaryHtml_(booking, when),
     });
   } catch (err) {
     console.error(err);
