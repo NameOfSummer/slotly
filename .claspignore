@@ -1,0 +1,6 @@
+tools/**
+assets/**
+fonts/**
+README.md
+.gitignore
+.claspignore

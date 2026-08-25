@@ -1,0 +1,1222 @@
+<script>
+(function () {
+  var WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+  var WEEK_KEYS = [
+    { key: '1', label: '月' },
+    { key: '2', label: '火' },
+    { key: '3', label: '水' },
+    { key: '4', label: '木' },
+    { key: '5', label: '金' },
+    { key: '6', label: '土' },
+    { key: '0', label: '日' },
+  ];
+  var TIMEZONES = [
+    { value: 'Asia/Tokyo', label: '日本（東京）' },
+    { value: 'Asia/Seoul', label: '韓国（ソウル）' },
+    { value: 'Asia/Shanghai', label: '中国（北京・上海）' },
+    { value: 'Asia/Taipei', label: '台湾（台北）' },
+    { value: 'Asia/Hong_Kong', label: '香港' },
+    { value: 'Asia/Singapore', label: 'シンガポール' },
+    { value: 'Asia/Bangkok', label: 'タイ（バンコク）' },
+    { value: 'Asia/Ho_Chi_Minh', label: 'ベトナム（ホーチミン）' },
+    { value: 'Asia/Jakarta', label: 'インドネシア（ジャカルタ）' },
+    { value: 'Asia/Manila', label: 'フィリピン（マニラ）' },
+    { value: 'Asia/Kolkata', label: 'インド（コルカタ）' },
+    { value: 'Asia/Dubai', label: 'UAE（ドバイ）' },
+    { value: 'Australia/Sydney', label: 'オーストラリア（シドニー）' },
+    { value: 'Pacific/Auckland', label: 'ニュージーランド（オークランド）' },
+    { value: 'Europe/London', label: 'イギリス（ロンドン）' },
+    { value: 'Europe/Paris', label: 'フランス（パリ）' },
+    { value: 'Europe/Berlin', label: 'ドイツ（ベルリン）' },
+    { value: 'America/New_York', label: 'アメリカ（ニューヨーク）' },
+    { value: 'America/Chicago', label: 'アメリカ（シカゴ）' },
+    { value: 'America/Denver', label: 'アメリカ（デンバー）' },
+    { value: 'America/Los_Angeles', label: 'アメリカ（ロサンゼルス）' },
+    { value: 'America/Sao_Paulo', label: 'ブラジル（サンパウロ）' },
+    { value: 'Pacific/Honolulu', label: 'アメリカ（ホノルル）' },
+    { value: 'UTC', label: 'UTC' },
+  ];
+
+  function dayRanges(hours) {
+    if (!hours) return [];
+    if (Object.prototype.toString.call(hours) === '[object Array]') return hours.slice();
+    if (hours.start && hours.end) return [{ start: hours.start, end: hours.end }];
+    return [];
+  }
+
+  function normalizeWeekHoursClient(weekHours) {
+    var src = weekHours || {};
+    var next = {};
+    for (var d = 0; d <= 6; d++) {
+      var ranges = dayRanges(src[String(d)]);
+      next[String(d)] = ranges.length ? ranges : null;
+    }
+    return next;
+  }
+
+  function hmToMin(hm) {
+    var p = String(hm || '00:00').split(':');
+    return Number(p[0] || 0) * 60 + Number(p[1] || 0);
+  }
+
+  function minToHm(min) {
+    var h = Math.floor(min / 60);
+    var m = min % 60;
+    return pad(h) + ':' + pad(m);
+  }
+
+  function suggestNextRange(ranges) {
+    if (!ranges.length) return { start: '10:00', end: '18:00' };
+    var lastEnd = hmToMin(ranges[ranges.length - 1].end);
+    if (ranges.length === 1 && lastEnd <= 13 * 60) {
+      return { start: '13:00', end: '18:00' };
+    }
+    var startMin = Math.min(lastEnd + 60, 20 * 60);
+    var endMin = Math.min(startMin + 180, 22 * 60);
+    if (endMin <= startMin) return { start: '18:00', end: '20:00' };
+    return { start: minToHm(startMin), end: minToHm(endMin) };
+  }
+
+  function dayHourIssues(ranges) {
+    var invalid = {};
+    var overlap = {};
+    var i;
+    var j;
+    for (i = 0; i < ranges.length; i++) {
+      var start = hmToMin(ranges[i].start);
+      var end = hmToMin(ranges[i].end);
+      if (!ranges[i].start || !ranges[i].end || !isFinite(start) || !isFinite(end) || end <= start) {
+        invalid[i] = true;
+      }
+    }
+    for (i = 0; i < ranges.length; i++) {
+      if (invalid[i]) continue;
+      var a0 = hmToMin(ranges[i].start);
+      var a1 = hmToMin(ranges[i].end);
+      for (j = i + 1; j < ranges.length; j++) {
+        if (invalid[j]) continue;
+        var b0 = hmToMin(ranges[j].start);
+        var b1 = hmToMin(ranges[j].end);
+        if (a0 < b1 && b0 < a1) {
+          overlap[i] = true;
+          overlap[j] = true;
+        }
+      }
+    }
+    var messages = [];
+    if (Object.keys(invalid).length) messages.push('終了時刻は開始より後にしてください。');
+    if (Object.keys(overlap).length) messages.push('時間帯が重なっています。');
+    return { invalid: invalid, overlap: overlap, messages: messages };
+  }
+
+  function weekHoursErrorMessage(weekHours) {
+    var overlap = false;
+    var invalid = false;
+    WEEK_KEYS.forEach(function (day) {
+      var issues = dayHourIssues(dayRanges((weekHours || {})[day.key]));
+      if (Object.keys(issues.invalid).length) invalid = true;
+      if (Object.keys(issues.overlap).length) overlap = true;
+    });
+    if (overlap && invalid) return '受付時間に、重なっている時間帯または不正な時刻があります。';
+    if (overlap) return '同じ曜日の時間帯が重なっています。直してから保存してください。';
+    if (invalid) return '終了時刻は開始より後にしてください。';
+    return '';
+  }
+
+  var boot = readBootstrap();
+  var app = document.getElementById('app');
+  var state = {
+    view: boot.page || 'book',
+    config: null,
+    durationMin: 30,
+    withMeet: true,
+    month: startOfMonth(new Date()),
+    selectedDay: null,
+    selectedStart: null,
+    starts: [],
+    loading: false,
+    submitting: false,
+    error: '',
+    booking: null,
+    form: { name: '', eventTitle: '', email: '', note: '' },
+    admin: null,
+    adminPatch: null,
+  };
+
+  function readBootstrap() {
+    var base = { page: 'book', token: '', adminKey: '' };
+    var node = document.getElementById('bootstrap');
+    if (node && node.textContent) {
+      try { base = Object.assign(base, JSON.parse(node.textContent)); } catch (e) {}
+    }
+    try {
+      var q = new URLSearchParams(window.location.search);
+      if (q.get('page')) base.page = q.get('page');
+      if (q.get('token')) base.token = q.get('token');
+      if (q.get('key')) base.adminKey = q.get('key');
+    } catch (e) {}
+    return base;
+  }
+
+  function api(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) {
+          reject(err);
+        });
+      runner[name].apply(runner, args);
+    });
+  }
+
+  function formatDuration(min) {
+    if (min < 60) return min + '分';
+    var h = Math.floor(min / 60);
+    var m = min % 60;
+    return m ? h + '時間' + m + '分' : h + '時間';
+  }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function localYmd(date) {
+    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+  }
+
+  function startOfMonth(date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  function monthIndex(date) {
+    return date.getFullYear() * 12 + date.getMonth();
+  }
+
+  function bookingWindow() {
+    var now = new Date();
+    var minNotice = (state.config && Number(state.config.minNoticeMin)) || 0;
+    var maxDays = (state.config && Number(state.config.maxDaysAhead)) || 28;
+    return {
+      start: new Date(now.getTime() + minNotice * 60000),
+      end: new Date(now.getTime() + maxDays * 24 * 60 * 60000),
+    };
+  }
+
+  function bookingMonthBounds() {
+    var win = bookingWindow();
+    return { min: monthIndex(win.start), max: monthIndex(win.end) };
+  }
+
+  function clampVisibleMonth() {
+    var bounds = bookingMonthBounds();
+    var idx = monthIndex(state.month);
+    if (idx < bounds.min) state.month = startOfMonth(bookingWindow().start);
+    else if (idx > bounds.max) state.month = startOfMonth(bookingWindow().end);
+  }
+
+  function ymdToDate(ymd) {
+    var p = ymd.split('-').map(Number);
+    return new Date(p[0], p[1] - 1, p[2]);
+  }
+
+  function formatRange(startIso, endIso) {
+    var start = new Date(startIso);
+    var end = new Date(endIso);
+    var date = new Intl.DateTimeFormat('ja-JP', {
+      year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
+    }).format(start);
+    var hm = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    return date + ' ' + hm.format(start) + ' – ' + hm.format(end);
+  }
+
+  function startsByDay() {
+    var map = {};
+    state.starts.forEach(function (iso) {
+      var key = localYmd(new Date(iso));
+      if (!map[key]) map[key] = [];
+      map[key].push(iso);
+    });
+    return map;
+  }
+
+  function errMessage(err) {
+    if (!err) return 'エラーが発生しました。';
+    return err.message || String(err);
+  }
+
+  function setText(node, text) {
+    node.textContent = text == null ? '' : String(text);
+  }
+
+  function icon(name) {
+    var el = document.createElement('span');
+    el.className = 'material-symbols-outlined';
+    el.setAttribute('aria-hidden', 'true');
+    el.textContent = name;
+    return el;
+  }
+
+  var helpTipSeq = 0;
+
+  function closeHelpTips(except) {
+    var open = document.querySelectorAll('.help-tip.is-open');
+    var i;
+    for (i = 0; i < open.length; i++) {
+      if (open[i] !== except) open[i].classList.remove('is-open');
+    }
+  }
+
+  function closeWeekCopyMenus(except) {
+    var open = document.querySelectorAll('.week-copy-wrap.is-open');
+    var i;
+    for (i = 0; i < open.length; i++) {
+      if (open[i] === except) continue;
+      open[i].classList.remove('is-open');
+      var btn = open[i].querySelector('.week-copy');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function weekCopyControl(patch, sourceDay) {
+    var wrap = document.createElement('div');
+    wrap.className = 'week-copy-wrap';
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'week-copy';
+    btn.setAttribute('aria-label', '他の曜日に複製');
+    btn.setAttribute('aria-haspopup', 'dialog');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.appendChild(icon('content_copy'));
+
+    var menu = document.createElement('div');
+    menu.className = 'week-copy-menu';
+    menu.setAttribute('role', 'dialog');
+    menu.setAttribute('aria-label', '他の曜日に複製');
+
+    var head = document.createElement('div');
+    head.className = 'week-copy-head';
+    var title = document.createElement('div');
+    title.className = 'week-copy-title';
+    title.textContent = sourceDay.label + 'の時間帯を複製';
+    var all = document.createElement('button');
+    all.type = 'button';
+    all.className = 'week-copy-all';
+    all.textContent = 'すべて';
+    head.appendChild(title);
+    head.appendChild(all);
+    menu.appendChild(head);
+
+    var checks = [];
+    WEEK_KEYS.forEach(function (other) {
+      if (other.key === sourceDay.key) return;
+      var lab = document.createElement('label');
+      lab.className = 'week-copy-day';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = other.key;
+      var span = document.createElement('span');
+      span.textContent = other.label;
+      lab.appendChild(cb);
+      lab.appendChild(span);
+      menu.appendChild(lab);
+      checks.push(cb);
+    });
+
+    var apply = document.createElement('button');
+    apply.type = 'button';
+    apply.className = 'week-copy-apply';
+    apply.textContent = '適用';
+    apply.disabled = true;
+
+    function selectedKeys() {
+      return checks.filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
+    }
+    function syncApply() {
+      apply.disabled = !selectedKeys().length;
+    }
+    checks.forEach(function (cb) {
+      cb.addEventListener('change', syncApply);
+    });
+    all.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      var next = selectedKeys().length !== checks.length;
+      checks.forEach(function (cb) { cb.checked = next; });
+      syncApply();
+    });
+    apply.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      var keys = selectedKeys();
+      if (!keys.length) return;
+      var ranges = dayRanges(patch.weekHours[sourceDay.key]);
+      if (!ranges.length) return;
+      keys.forEach(function (key) {
+        patch.weekHours[key] = JSON.parse(JSON.stringify(ranges));
+      });
+      render();
+    });
+    menu.appendChild(apply);
+
+    btn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var willOpen = !wrap.classList.contains('is-open');
+      closeHelpTips();
+      closeWeekCopyMenus();
+      if (willOpen) {
+        wrap.classList.add('is-open');
+        btn.setAttribute('aria-expanded', 'true');
+      }
+    });
+    menu.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    return wrap;
+  }
+
+  function helpTip(text, fieldName) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'help-tip';
+    btn.setAttribute('aria-label', (fieldName ? fieldName + 'の説明' : '説明'));
+    btn.appendChild(icon('help'));
+    var bubble = document.createElement('span');
+    bubble.className = 'help-tip-bubble';
+    bubble.setAttribute('role', 'tooltip');
+    helpTipSeq += 1;
+    bubble.id = 'help-tip-' + helpTipSeq;
+    bubble.textContent = text;
+    btn.setAttribute('aria-describedby', bubble.id);
+    btn.appendChild(bubble);
+    btn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var willOpen = !btn.classList.contains('is-open');
+      closeHelpTips();
+      closeWeekCopyMenus();
+      if (willOpen) btn.classList.add('is-open');
+    });
+    return btn;
+  }
+
+  function fieldLabel(text, hint, forId) {
+    var row = document.createElement('div');
+    row.className = 'label-row';
+    var lab = forId ? document.createElement('label') : document.createElement('span');
+    lab.className = 'label';
+    if (forId) lab.setAttribute('for', forId);
+    lab.textContent = text;
+    row.appendChild(lab);
+    if (hint) row.appendChild(helpTip(hint, text));
+    return row;
+  }
+
+  function safeHref(url) {
+    if (!url) return '';
+    if (/^https:\/\//.test(url) || /^http:\/\/localhost/.test(url) || url.indexOf('?') === 0) return url;
+    return '';
+  }
+
+  function render() {
+    app.innerHTML = '';
+    if (state.view === 'admin') {
+      app.appendChild(renderAdmin());
+      return;
+    }
+    if (state.view === 'cancel') {
+      app.appendChild(renderCancel());
+      return;
+    }
+    if (state.view === 'done') {
+      app.appendChild(renderDone());
+      return;
+    }
+    app.appendChild(renderBook());
+  }
+
+  function header(sub) {
+    var wrap = document.createElement('header');
+    var brand = document.createElement('div');
+    brand.className = 'brand';
+    brand.innerHTML = 'Slot<span>ly</span>';
+    var lede = document.createElement('p');
+    lede.className = 'lede';
+    setText(lede, sub);
+    wrap.appendChild(brand);
+    wrap.appendChild(lede);
+    return wrap;
+  }
+
+  function renderBook() {
+    var shell = document.createElement('div');
+    shell.className = 'shell';
+    var host = (state.config && state.config.hostName) ? state.config.hostName + ' の予約' : '空き時間から予約する';
+    shell.appendChild(header(host));
+
+    if (state.error && !state.selectedStart) {
+      var err = document.createElement('div');
+      err.className = 'error';
+      setText(err, state.error);
+      shell.appendChild(err);
+    }
+
+    var layout = document.createElement('div');
+    layout.className = 'layout';
+    layout.appendChild(renderPanel());
+    layout.appendChild(renderBoard());
+    shell.appendChild(layout);
+
+    if (state.selectedStart) shell.appendChild(renderDrawer());
+    return shell;
+  }
+
+  function renderPanel() {
+    var panel = document.createElement('aside');
+    panel.className = 'card panel';
+
+    var dur = document.createElement('div');
+    dur.className = 'field';
+    dur.innerHTML = '<span class="label">所要時間</span>';
+    var select = document.createElement('select');
+    var durations = (state.config && state.config.durations) || [];
+    if (!durations.length) {
+      for (var m = 15; m <= 240; m += 15) durations.push(m);
+    }
+    durations.forEach(function (min) {
+      var opt = document.createElement('option');
+      opt.value = String(min);
+      opt.textContent = formatDuration(min);
+      if (min === state.durationMin) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', function () {
+      state.durationMin = Number(select.value);
+      state.selectedStart = null;
+      state.selectedDay = null;
+      loadSlots();
+    });
+    dur.appendChild(select);
+    panel.appendChild(dur);
+
+    var meet = document.createElement('div');
+    meet.className = 'field';
+    meet.innerHTML = '<span class="label">場所</span>';
+    var seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.appendChild(segBtn('Google Meet', true));
+    seg.appendChild(segBtn('Meetなし', false));
+    meet.appendChild(seg);
+    panel.appendChild(meet);
+    return panel;
+  }
+
+  function segBtn(label, value) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.setAttribute('aria-pressed', String(state.withMeet === value));
+    btn.addEventListener('click', function () {
+      state.withMeet = value;
+      render();
+    });
+    return btn;
+  }
+
+  function renderBoard() {
+    var board = document.createElement('section');
+    board.className = 'card board';
+    if (state.loading) {
+      var spin = document.createElement('div');
+      spin.className = 'spinner';
+      board.appendChild(spin);
+      return board;
+    }
+
+    board.appendChild(renderCalendar());
+    if (state.selectedDay) board.appendChild(renderTimes());
+    return board;
+  }
+
+  function renderCalendar() {
+    clampVisibleMonth();
+    var bounds = bookingMonthBounds();
+    var currentIdx = monthIndex(state.month);
+    var wrap = document.createElement('div');
+    var head = document.createElement('div');
+    head.className = 'cal-head';
+    var title = document.createElement('h2');
+    setText(title, state.month.getFullYear() + '年' + (state.month.getMonth() + 1) + '月');
+    var prev = document.createElement('button');
+    prev.className = 'icon-btn';
+    prev.type = 'button';
+    prev.setAttribute('aria-label', '前の月');
+    prev.appendChild(icon('chevron_left'));
+    prev.disabled = currentIdx <= bounds.min;
+    prev.addEventListener('click', function () {
+      if (prev.disabled) return;
+      state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1);
+      render();
+    });
+    var next = document.createElement('button');
+    next.className = 'icon-btn';
+    next.type = 'button';
+    next.setAttribute('aria-label', '次の月');
+    next.appendChild(icon('chevron_right'));
+    next.disabled = currentIdx >= bounds.max;
+    next.addEventListener('click', function () {
+      if (next.disabled) return;
+      state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1);
+      render();
+    });
+    var nav = document.createElement('div');
+    nav.appendChild(prev);
+    nav.appendChild(next);
+    nav.style.display = 'flex';
+    nav.style.gap = '8px';
+    head.appendChild(title);
+    head.appendChild(nav);
+    wrap.appendChild(head);
+
+    var dow = document.createElement('div');
+    dow.className = 'dow';
+    WEEKDAYS.forEach(function (d) {
+      var s = document.createElement('div');
+      s.textContent = d;
+      dow.appendChild(s);
+    });
+    wrap.appendChild(dow);
+
+    var byDay = startsByDay();
+    var grid = document.createElement('div');
+    grid.className = 'grid';
+    var first = startOfMonth(state.month);
+    var startPad = first.getDay();
+    var daysInMonth = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0).getDate();
+    var todayKey = localYmd(new Date());
+    for (var i = 0; i < startPad; i++) {
+      var empty = document.createElement('div');
+      grid.appendChild(empty);
+    }
+    for (var day = 1; day <= daysInMonth; day++) {
+      var date = new Date(state.month.getFullYear(), state.month.getMonth(), day);
+      var key = localYmd(date);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'day';
+      btn.textContent = String(day);
+      var has = (byDay[key] || []).length > 0;
+      if (has) btn.classList.add('has');
+      if (key === state.selectedDay) btn.classList.add('selected');
+      if (key < todayKey) btn.classList.add('muted-day');
+      btn.disabled = !has;
+      btn.addEventListener('click', function (k) {
+        return function () {
+          state.selectedDay = k;
+          state.selectedStart = null;
+          render();
+        };
+      }(key));
+      grid.appendChild(btn);
+    }
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  function renderTimes() {
+    var wrap = document.createElement('div');
+    wrap.className = 'times-wrap';
+    var label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = '空き時間';
+    wrap.appendChild(label);
+    var list = (startsByDay()[state.selectedDay] || []);
+    if (!list.length) {
+      var none = document.createElement('p');
+      none.className = 'empty';
+      none.textContent = 'この日の空きはありません。';
+      wrap.appendChild(none);
+      return wrap;
+    }
+    var times = document.createElement('div');
+    times.className = 'times';
+    var hm = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    list.forEach(function (iso) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'slot';
+      btn.textContent = hm.format(new Date(iso));
+      btn.setAttribute('aria-pressed', String(iso === state.selectedStart));
+      btn.addEventListener('click', function () {
+        state.selectedStart = iso;
+        state.error = '';
+        render();
+      });
+      times.appendChild(btn);
+    });
+    wrap.appendChild(times);
+    return wrap;
+  }
+
+  function renderDrawer() {
+    var bg = document.createElement('div');
+    bg.className = 'drawer-bg';
+    var box = document.createElement('div');
+    box.className = 'drawer';
+    var h = document.createElement('h2');
+    h.textContent = '予約内容';
+    var p = document.createElement('p');
+    p.className = 'lede';
+    setText(p, formatRange(state.selectedStart, new Date(new Date(state.selectedStart).getTime() + state.durationMin * 60000).toISOString()) + ' · ' + (state.withMeet ? 'Google Meet' : 'Meetなし'));
+    box.appendChild(h);
+    box.appendChild(p);
+    if (state.error) {
+      var err = document.createElement('div');
+      err.className = 'error';
+      setText(err, state.error);
+      box.appendChild(err);
+    }
+    box.appendChild(inputField('お名前', 'name', 'text', 'ホストに表示される予約者の名前です。カレンダー招待にも使います。'));
+    box.appendChild(inputField('予定のタイトル（任意）', 'eventTitle', 'text', 'カレンダーに追加される予定の名前です。空欄の場合自動で決まります。'));
+    box.appendChild(inputField('メールアドレス', 'email', 'email', '予約確定の案内と、カレンダー招待の送付先です。キャンセル時の連絡にも使います。'));
+    box.appendChild(inputField('説明（任意）', 'note', 'textarea', 'ホストへの連絡事項です。カレンダー予定の説明にも入ります。'));
+    var actions = document.createElement('div');
+    actions.className = 'actions';
+    var cancel = document.createElement('button');
+    cancel.className = 'btn secondary';
+    cancel.type = 'button';
+    cancel.textContent = '戻る';
+    cancel.addEventListener('click', function () {
+      state.selectedStart = null;
+      state.error = '';
+      render();
+    });
+    var submit = document.createElement('button');
+    submit.className = 'btn';
+    submit.type = 'button';
+    submit.textContent = state.submitting ? '予約しています…' : '予約を確定する';
+    submit.disabled = state.submitting;
+    submit.addEventListener('click', submitBooking);
+    actions.appendChild(cancel);
+    actions.appendChild(submit);
+    box.appendChild(actions);
+    bg.appendChild(box);
+    bg.addEventListener('click', function (ev) {
+      if (ev.target === bg && !state.submitting) {
+        state.selectedStart = null;
+        render();
+      }
+    });
+    return bg;
+  }
+
+  function inputField(label, key, type, hint) {
+    var wrap = document.createElement('div');
+    wrap.className = 'field';
+    var id = 'field-' + key;
+    wrap.appendChild(fieldLabel(label, hint, id));
+    var node = type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
+    if (type !== 'textarea') node.type = type;
+    node.id = id;
+    node.name = key;
+    node.value = state.form[key];
+    node.addEventListener('input', function () { state.form[key] = node.value; });
+    wrap.appendChild(node);
+    return wrap;
+  }
+
+  function renderDone() {
+    var shell = document.createElement('div');
+    shell.className = 'shell';
+    shell.appendChild(header('予約が確定しました'));
+    var card = document.createElement('section');
+    card.className = 'card panel';
+    if (!state.booking) {
+      var spin = document.createElement('div');
+      spin.className = 'spinner';
+      card.appendChild(spin);
+      shell.appendChild(card);
+      return shell;
+    }
+    var status = document.createElement('div');
+    status.className = 'status';
+    status.textContent = '確定';
+    var h = document.createElement('h2');
+    setText(h, formatRange(state.booking.startIso, state.booking.endIso));
+    var meta = document.createElement('p');
+    meta.className = 'lede';
+    setText(meta, formatDuration(state.booking.durationMin) + ' · ' + (state.booking.withMeet ? 'Google Meet' : 'Meetなし'));
+    card.appendChild(status);
+    card.appendChild(h);
+    if (state.booking.title) {
+      var titleLine = document.createElement('p');
+      titleLine.className = 'lede';
+      setText(titleLine, state.booking.title);
+      card.appendChild(titleLine);
+    }
+    card.appendChild(meta);
+    if (state.booking.meetUrl && safeHref(state.booking.meetUrl)) {
+      var meet = document.createElement('p');
+      var a = document.createElement('a');
+      a.href = state.booking.meetUrl;
+      a.textContent = 'Google Meet を開く';
+      meet.appendChild(a);
+      card.appendChild(meet);
+    }
+    var links = document.createElement('div');
+    links.className = 'links';
+    if (state.booking.googleUrl) {
+      var g = document.createElement('a');
+      g.className = 'primary';
+      g.href = state.booking.googleUrl;
+      g.target = '_blank';
+      g.rel = 'noopener';
+      g.textContent = 'Google カレンダーに追加';
+      links.appendChild(g);
+    }
+    if (state.booking.icsUrl) {
+      var ics = document.createElement('a');
+      ics.href = state.booking.icsUrl;
+      ics.textContent = 'その他のカレンダー用にファイルをダウンロード';
+      links.appendChild(ics);
+    }
+    if (state.booking.cancelUrl) {
+      var cancel = document.createElement('a');
+      cancel.href = state.booking.cancelUrl;
+      cancel.textContent = 'この予約をキャンセルする';
+      links.appendChild(cancel);
+    }
+    card.appendChild(links);
+    var note = document.createElement('p');
+    note.className = 'notice';
+    note.textContent = '招待メールも送っています。Gmail の場合、承諾するとカレンダーに入ります。この画面またはメールのリンクからキャンセルできます。';
+    card.appendChild(note);
+    shell.appendChild(card);
+    return shell;
+  }
+
+  function renderCancel() {
+    var shell = document.createElement('div');
+    shell.className = 'shell';
+    shell.appendChild(header('予約のキャンセル'));
+    var card = document.createElement('section');
+    card.className = 'card panel';
+    if (state.loading) {
+      var spin = document.createElement('div');
+      spin.className = 'spinner';
+      card.appendChild(spin);
+      shell.appendChild(card);
+      return shell;
+    }
+    if (state.error) {
+      var err = document.createElement('div');
+      err.className = 'error';
+      setText(err, state.error);
+      card.appendChild(err);
+    }
+    if (state.booking) {
+      var status = document.createElement('div');
+      status.className = 'status' + (state.booking.status === 'cancelled' ? ' cancelled' : '');
+      status.textContent = state.booking.status === 'cancelled' ? 'キャンセル済み' : '確定中';
+      var h = document.createElement('h2');
+      setText(h, formatRange(state.booking.startIso, state.booking.endIso));
+      card.appendChild(status);
+      card.appendChild(h);
+      if (state.booking.status !== 'cancelled') {
+        var p = document.createElement('p');
+        p.className = 'lede';
+        p.textContent = 'この予約を取り消します。カレンダー上の予定も削除されます。';
+        card.appendChild(p);
+        var actions = document.createElement('div');
+        actions.className = 'actions';
+        var btn = document.createElement('button');
+        btn.className = 'btn danger';
+        btn.type = 'button';
+        btn.disabled = state.submitting;
+        btn.textContent = state.submitting ? 'キャンセルしています…' : '予約をキャンセルする';
+        btn.addEventListener('click', function () {
+          state.submitting = true;
+          state.error = '';
+          render();
+          api('cancelBooking', boot.token).then(function (booking) {
+            state.booking = booking;
+            state.submitting = false;
+            render();
+          }).catch(function (e) {
+            state.submitting = false;
+            state.error = errMessage(e);
+            render();
+          });
+        });
+        actions.appendChild(btn);
+        card.appendChild(actions);
+      }
+    }
+    shell.appendChild(card);
+    return shell;
+  }
+
+  function renderAdmin() {
+    var shell = document.createElement('div');
+    shell.className = 'shell';
+    shell.appendChild(header('管理画面'));
+    var card = document.createElement('section');
+    card.className = 'card panel';
+    if (state.loading && !state.admin) {
+      var spin = document.createElement('div');
+      spin.className = 'spinner';
+      card.appendChild(spin);
+      shell.appendChild(card);
+      return shell;
+    }
+    if (state.error) {
+      var err = document.createElement('div');
+      err.className = 'error';
+      setText(err, state.error);
+      card.appendChild(err);
+    }
+    if (!state.adminPatch) {
+      shell.appendChild(card);
+      return shell;
+    }
+    var patch = state.adminPatch;
+    card.appendChild(adminText('表示名', 'hostName', patch.hostName || '', '予約ページの見出しに表示します。'));
+    card.appendChild(adminSelect('タイムゾーン', 'timezone', patch.timezone || 'Asia/Tokyo', TIMEZONES, '空き時間と予約の表示に使うタイムゾーンです。'));
+    card.appendChild(adminNumber('会議前後のバッファ（分）', 'bufferMin', patch.bufferMin, 'カレンダー上の予定の前後に、この分数だけ予約を入れられなくします。'));
+    card.appendChild(adminNumber('最短何分前まで予約可', 'minNoticeMin', patch.minNoticeMin, 'いまからこの分数以内の枠は予約できません。'));
+    card.appendChild(adminNumber('何日先まで予約可', 'maxDaysAhead', patch.maxDaysAhead, '今日から何日先までの空きを公開するかを決めます。'));
+
+    card.appendChild(fieldLabel('受付時間', '曜日ごとに予約を受け付ける時間帯です。'));
+    var week = document.createElement('div');
+    week.className = 'admin-grid';
+    WEEK_KEYS.forEach(function (day) {
+      var ranges = dayRanges(patch.weekHours[day.key]);
+      var enabled = ranges.length > 0;
+      var row = document.createElement('div');
+      row.className = 'week-row';
+
+      var toggle = document.createElement('label');
+      toggle.className = 'week-day-toggle';
+      var on = document.createElement('input');
+      on.type = 'checkbox';
+      on.checked = enabled;
+      on.addEventListener('change', function () {
+        patch.weekHours[day.key] = on.checked ? [{ start: '10:00', end: '18:00' }] : null;
+        render();
+      });
+      var name = document.createElement('span');
+      name.textContent = day.label;
+      toggle.appendChild(on);
+      toggle.appendChild(name);
+      row.appendChild(toggle);
+
+      var rangesWrap = document.createElement('div');
+      rangesWrap.className = 'week-ranges';
+      if (!enabled) {
+        var off = document.createElement('div');
+        off.className = 'week-off';
+        off.textContent = '休み';
+        rangesWrap.appendChild(off);
+      } else {
+        var issues = dayHourIssues(ranges);
+        ranges.forEach(function (range, index) {
+          var line = document.createElement('div');
+          line.className = 'week-range';
+          if (issues.invalid[index] || issues.overlap[index]) line.classList.add('is-error');
+          var start = document.createElement('input');
+          start.type = 'time';
+          start.value = range.start;
+          start.setAttribute('aria-invalid', String(!!(issues.invalid[index] || issues.overlap[index])));
+          var sep = document.createElement('span');
+          sep.className = 'week-sep';
+          sep.textContent = '〜';
+          var end = document.createElement('input');
+          end.type = 'time';
+          end.value = range.end;
+          end.setAttribute('aria-invalid', String(!!(issues.invalid[index] || issues.overlap[index])));
+          function syncRange() {
+            var next = dayRanges(patch.weekHours[day.key]);
+            next[index] = { start: start.value, end: end.value };
+            patch.weekHours[day.key] = next;
+            render();
+          }
+          start.addEventListener('change', syncRange);
+          end.addEventListener('change', syncRange);
+          line.appendChild(start);
+          line.appendChild(sep);
+          line.appendChild(end);
+          if (ranges.length > 1) {
+            var remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'week-remove';
+            remove.setAttribute('aria-label', 'この時間帯を削除');
+            remove.appendChild(icon('delete'));
+            remove.addEventListener('click', function () {
+              var next = dayRanges(patch.weekHours[day.key]);
+              next.splice(index, 1);
+              patch.weekHours[day.key] = next.length ? next : null;
+              render();
+            });
+            line.appendChild(remove);
+          }
+          if (index === ranges.length - 1) {
+            var add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'week-add';
+            add.setAttribute('aria-label', '時間帯を追加');
+            add.appendChild(icon('add'));
+            add.addEventListener('click', function () {
+              var next = dayRanges(patch.weekHours[day.key]);
+              if (next.length === 1 && hmToMin(next[0].end) - hmToMin(next[0].start) >= 6 * 60) {
+                var originalEnd = next[0].end;
+                next[0] = { start: next[0].start, end: '12:00' };
+                next.push({ start: '13:00', end: originalEnd });
+              } else {
+                next.push(suggestNextRange(next));
+              }
+              patch.weekHours[day.key] = next;
+              render();
+            });
+            line.appendChild(add);
+            line.appendChild(weekCopyControl(patch, day));
+          }
+          rangesWrap.appendChild(line);
+        });
+        if (issues.messages.length) {
+          var rangeErr = document.createElement('div');
+          rangeErr.className = 'week-range-error';
+          rangeErr.textContent = issues.messages.join(' ');
+          rangesWrap.appendChild(rangeErr);
+        }
+      }
+      row.appendChild(rangesWrap);
+      week.appendChild(row);
+    });
+    card.appendChild(week);
+
+    var writeLabel = fieldLabel('予定の書き込み先', '確定した予約を入れるカレンダーです。');
+    writeLabel.style.marginTop = '18px';
+    card.appendChild(writeLabel);
+    var write = document.createElement('select');
+    (state.admin.calendars || []).forEach(function (cal) {
+      var opt = document.createElement('option');
+      opt.value = cal.id;
+      opt.textContent = cal.name + (cal.primary ? '（メイン）' : '');
+      if (cal.id === patch.writeCalendarId) opt.selected = true;
+      write.appendChild(opt);
+    });
+    write.addEventListener('change', function () { patch.writeCalendarId = write.value; });
+    card.appendChild(write);
+
+    var busyLabel = fieldLabel('空き判定に使うカレンダー', '予定が入っている時間を空きから除外するカレンダーです。複数選べます。');
+    busyLabel.style.marginTop = '18px';
+    card.appendChild(busyLabel);
+    var cals = document.createElement('div');
+    cals.className = 'cals';
+    (state.admin.calendars || []).forEach(function (cal) {
+      var lab = document.createElement('label');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = (patch.busyCalendarIds || []).indexOf(cal.id) !== -1;
+      cb.addEventListener('change', function () {
+        var set = {};
+        (patch.busyCalendarIds || []).forEach(function (id) { set[id] = true; });
+        if (cb.checked) set[cal.id] = true;
+        else delete set[cal.id];
+        patch.busyCalendarIds = Object.keys(set);
+      });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(cal.name + (cal.primary ? '（メイン）' : '')));
+      cals.appendChild(lab);
+    });
+    card.appendChild(cals);
+
+    var actions = document.createElement('div');
+    actions.className = 'actions';
+    var save = document.createElement('button');
+    save.className = 'btn';
+    save.type = 'button';
+    save.disabled = state.submitting;
+    save.textContent = state.submitting ? '保存しています…' : '設定を保存';
+    save.addEventListener('click', function () {
+      var hoursError = weekHoursErrorMessage(patch.weekHours);
+      if (hoursError) {
+        state.error = hoursError;
+        render();
+        return;
+      }
+      state.submitting = true;
+      state.error = '';
+      render();
+      api('adminSaveSettings', boot.adminKey, state.adminPatch).then(function (settings) {
+        state.adminPatch = JSON.parse(JSON.stringify(settings));
+        state.adminPatch.weekHours = normalizeWeekHoursClient(state.adminPatch.weekHours);
+        state.submitting = false;
+        state.error = '';
+        render();
+      }).catch(function (e) {
+        state.submitting = false;
+        state.error = errMessage(e);
+        render();
+      });
+    });
+    actions.appendChild(save);
+    card.appendChild(actions);
+    shell.appendChild(card);
+    return shell;
+  }
+
+  function adminSelect(label, key, value, options, hint) {
+    var wrap = document.createElement('div');
+    wrap.className = 'field';
+    wrap.appendChild(fieldLabel(label, hint));
+    var select = document.createElement('select');
+    var current = value || '';
+    var known = false;
+    options.forEach(function (opt) {
+      var node = document.createElement('option');
+      node.value = opt.value;
+      node.textContent = opt.label;
+      if (opt.value === current) {
+        node.selected = true;
+        known = true;
+      }
+      select.appendChild(node);
+    });
+    if (current && !known) {
+      var extra = document.createElement('option');
+      extra.value = current;
+      extra.textContent = current;
+      extra.selected = true;
+      select.insertBefore(extra, select.firstChild);
+    }
+    select.addEventListener('change', function () { state.adminPatch[key] = select.value; });
+    wrap.appendChild(select);
+    return wrap;
+  }
+
+  function adminText(label, key, value, hint) {
+    var wrap = document.createElement('div');
+    wrap.className = 'field';
+    wrap.appendChild(fieldLabel(label, hint));
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.addEventListener('input', function () { state.adminPatch[key] = input.value; });
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function adminNumber(label, key, value, hint) {
+    var wrap = document.createElement('div');
+    wrap.className = 'field';
+    wrap.appendChild(fieldLabel(label, hint));
+    var input = document.createElement('input');
+    input.type = 'number';
+    input.value = value;
+    input.addEventListener('input', function () { state.adminPatch[key] = Number(input.value); });
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function submitBooking() {
+    if (state.submitting) return;
+    state.submitting = true;
+    state.error = '';
+    render();
+    api('createBooking', {
+      durationMin: state.durationMin,
+      withMeet: state.withMeet,
+      startIso: state.selectedStart,
+      name: state.form.name,
+      eventTitle: state.form.eventTitle,
+      email: state.form.email,
+      note: state.form.note,
+    }).then(function (booking) {
+      state.booking = booking;
+      state.submitting = false;
+      state.view = 'done';
+      render();
+    }).catch(function (e) {
+      state.submitting = false;
+      state.error = errMessage(e);
+      render();
+    });
+  }
+
+  function loadSlots() {
+    state.loading = true;
+    state.error = '';
+    render();
+    api('getSlots', state.durationMin).then(function (res) {
+      state.starts = (res && res.starts) || [];
+      state.loading = false;
+      render();
+    }).catch(function (e) {
+      state.loading = false;
+      state.error = errMessage(e);
+      render();
+    });
+  }
+
+  function bootApp() {
+    if (state.view === 'admin') {
+      state.loading = true;
+      render();
+      api('adminGetState', boot.adminKey).then(function (res) {
+        state.admin = res;
+        state.adminPatch = JSON.parse(JSON.stringify(res.settings));
+        state.adminPatch.weekHours = normalizeWeekHoursClient(state.adminPatch.weekHours);
+        state.loading = false;
+        render();
+      }).catch(function (e) {
+        state.loading = false;
+        state.error = errMessage(e);
+        render();
+      });
+      return;
+    }
+    if (state.view === 'cancel' || state.view === 'done') {
+      state.loading = true;
+      render();
+      api('getBooking', boot.token).then(function (booking) {
+        state.booking = booking;
+        state.loading = false;
+        render();
+      }).catch(function (e) {
+        state.loading = false;
+        state.error = errMessage(e);
+        render();
+      });
+      return;
+    }
+    state.loading = true;
+    render();
+    api('getPublicConfig').then(function (config) {
+      state.config = config;
+      if (config && config.durations && config.durations.indexOf(state.durationMin) === -1) {
+        state.durationMin = config.durations[1] || config.durations[0];
+      }
+      loadSlots();
+    }).catch(function (e) {
+      state.loading = false;
+      state.error = errMessage(e);
+      render();
+    });
+  }
+
+  document.addEventListener('click', function () {
+    closeHelpTips();
+    closeWeekCopyMenus();
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') {
+      closeHelpTips();
+      closeWeekCopyMenus();
+    }
+  });
+
+  bootApp();
+})();
+</script>
