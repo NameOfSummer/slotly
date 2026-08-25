@@ -24,6 +24,7 @@ function doGet(e) {
     page: page,
     token: token,
     adminKey: page === 'admin' ? e.parameter.key || '' : '',
+    webAppUrl: webAppUrl_(),
   });
 
   return template
@@ -35,6 +36,14 @@ function doGet(e) {
 
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function webAppUrl_() {
+  try {
+    return ScriptApp.getService().getUrl() || '';
+  } catch (err) {
+    return '';
+  }
 }
 
 /**

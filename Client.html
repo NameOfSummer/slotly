@@ -145,7 +145,7 @@
   };
 
   function readBootstrap() {
-    var base = { page: 'book', token: '', adminKey: '' };
+    var base = { page: 'book', token: '', adminKey: '', webAppUrl: '' };
     var node = document.getElementById('bootstrap');
     if (node && node.textContent) {
       try { base = Object.assign(base, JSON.parse(node.textContent)); } catch (e) {}
@@ -512,7 +512,84 @@
   }
 
   function bookingPageHref() {
-    return window.location.pathname || '/';
+    var injected = String(boot.webAppUrl || '').trim();
+    if (isUsableBookingUrl(injected)) return injected;
+    try {
+      var host = window.location.hostname || '';
+      var path = window.location.pathname || '/';
+      if (host.indexOf('googleusercontent.com') !== -1 || path.indexOf('userCodeAppPanel') !== -1) {
+        return '';
+      }
+      return window.location.protocol + '//' + window.location.host + path;
+    } catch (e) {
+      return '/';
+    }
+  }
+
+  function isUsableBookingUrl(url) {
+    if (!url) return false;
+    if (url.indexOf('userCodeAppPanel') !== -1) return false;
+    if (url.indexOf('googleusercontent.com') !== -1) return false;
+    return true;
+  }
+
+  function navigateToBookingUrl(href) {
+    try {
+      var host = window.location.hostname || '';
+      var path = window.location.pathname || '';
+      if (host.indexOf('googleusercontent.com') !== -1 || path.indexOf('userCodeAppPanel') !== -1) {
+        window.top.location.href = href;
+        return;
+      }
+    } catch (e) {}
+    window.location.assign(href);
+  }
+
+  function goToBookingPage(ev) {
+    if (state.submitting) {
+      if (ev) ev.preventDefault();
+      return;
+    }
+    if (ev && (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || (ev.button && ev.button !== 0))) {
+      return;
+    }
+    if (ev) ev.preventDefault();
+    if (state.view === 'book') {
+      state.helpOpen = false;
+      state.selectedStart = null;
+      state.error = '';
+      render();
+      window.scrollTo(0, 0);
+      return;
+    }
+    var href = bookingPageHref();
+    if (href) {
+      navigateToBookingUrl(href);
+      return;
+    }
+    if (ev) ev.preventDefault();
+    boot.page = 'book';
+    boot.token = '';
+    state.view = 'book';
+    state.booking = null;
+    state.error = '';
+    state.helpOpen = false;
+    state.selectedStart = null;
+    state.selectedDay = null;
+    state.form = { name: '', eventTitle: '', email: '', note: '' };
+    state.loading = true;
+    render();
+    api('getPublicConfig').then(function (config) {
+      state.config = config;
+      if (config && config.durations && config.durations.indexOf(state.durationMin) === -1) {
+        state.durationMin = config.durations[1] || config.durations[0];
+      }
+      loadSlots();
+    }).catch(function (e) {
+      state.loading = false;
+      state.error = errMessage(e);
+      render();
+    });
   }
 
   function safeHref(url) {
@@ -545,7 +622,11 @@
 
   function render() {
     syncDocumentTitle();
-    setModalScrollLock(!!state.helpOpen || (state.view === 'book' && !!state.selectedStart));
+    setModalScrollLock(
+      !!state.helpOpen
+      || (state.view === 'book' && !!state.selectedStart)
+      || (state.view === 'cancel' && state.submitting)
+    );
     app.innerHTML = '';
     var page;
     if (state.view === 'admin') page = renderAdmin();
@@ -553,14 +634,31 @@
     else if (state.view === 'done') page = renderDone();
     else page = renderBook();
     app.appendChild(page);
-    if (state.helpOpen) app.appendChild(renderHelp());
+    if (state.helpOpen && !state.submitting) app.appendChild(renderHelp());
+    if (state.view === 'cancel' && state.submitting) {
+      app.appendChild(busyOverlay('キャンセルしています…', 'page-mask'));
+    }
+  }
+
+  function busyOverlay(text, className) {
+    var mask = document.createElement('div');
+    mask.className = className;
+    mask.setAttribute('role', 'status');
+    mask.setAttribute('aria-live', 'polite');
+    mask.setAttribute('aria-busy', 'true');
+    mask.textContent = text;
+    return mask;
   }
 
   function header(sub) {
     var wrap = document.createElement('header');
-    var brand = document.createElement('div');
+    var brand = document.createElement('a');
     brand.className = 'brand';
+    brand.href = bookingPageHref() || '#';
+    brand.target = '_top';
+    brand.setAttribute('aria-label', '予約ページのトップへ');
     brand.innerHTML = 'Slot<span>ly</span>';
+    brand.addEventListener('click', goToBookingPage);
     var lede = document.createElement('p');
     lede.className = 'lede';
     setText(lede, sub);
@@ -569,11 +667,13 @@
     var how = document.createElement('button');
     how.type = 'button';
     how.className = 'how-open';
+    how.disabled = !!state.submitting;
     how.appendChild(icon('help'));
     var howLabel = document.createElement('span');
     howLabel.textContent = '使い方';
     how.appendChild(howLabel);
     how.addEventListener('click', function () {
+      if (state.submitting) return;
       state.helpOpen = true;
       render();
     });
@@ -947,11 +1047,7 @@
     inner.appendChild(actions);
     box.appendChild(inner);
     if (state.submitting) {
-      var mask = document.createElement('div');
-      mask.className = 'drawer-mask';
-      mask.setAttribute('role', 'status');
-      mask.textContent = '予約しています…';
-      box.appendChild(mask);
+      box.appendChild(busyOverlay('予約しています…', 'drawer-mask'));
     }
     bg.appendChild(box);
     return bg;
@@ -1061,8 +1157,10 @@
         btn.disabled = state.submitting;
         btn.textContent = state.submitting ? 'キャンセルしています…' : '予約をキャンセルする';
         btn.addEventListener('click', function () {
+          if (state.submitting) return;
           state.submitting = true;
           state.error = '';
+          state.helpOpen = false;
           render();
           api('cancelBooking', boot.token).then(function (booking) {
             state.booking = booking;
@@ -1085,8 +1183,10 @@
         againActions.className = 'actions';
         var again = document.createElement('a');
         again.className = 'btn';
-        again.href = bookingPageHref();
+        again.href = bookingPageHref() || '#';
+        again.target = '_top';
         again.textContent = '新しく予約する';
+        again.addEventListener('click', goToBookingPage);
         againActions.appendChild(again);
         card.appendChild(againActions);
       }
@@ -1120,6 +1220,10 @@
       return shell;
     }
     var patch = state.adminPatch;
+    pruneAdminBusyCalendars(patch);
+    if (!state.error) {
+      card.appendChild(calendarGoneNotice('any'));
+    }
     card.appendChild(adminText('表示名', 'hostName', patch.hostName || '', '予約ページの見出しに表示します。'));
     card.appendChild(adminTextarea(
       '許可するメールドメイン',
@@ -1245,15 +1349,27 @@
     card.appendChild(writeLabel);
     var write = document.createElement('select');
     var adminCals = sortedAdminCalendars();
+    var writeGone = !adminCalendarExists(patch.writeCalendarId);
+    if (writeGone) {
+      var writePh = document.createElement('option');
+      writePh.value = '';
+      writePh.textContent = 'カレンダーを選び直してください';
+      writePh.selected = true;
+      write.appendChild(writePh);
+    }
     adminCals.forEach(function (cal) {
       var opt = document.createElement('option');
       opt.value = cal.id;
       opt.textContent = calendarOptionLabel(cal);
-      if (cal.id === patch.writeCalendarId) opt.selected = true;
+      if (!writeGone && cal.id === patch.writeCalendarId) opt.selected = true;
       write.appendChild(opt);
     });
-    write.addEventListener('change', function () { patch.writeCalendarId = write.value; });
+    write.addEventListener('change', function () {
+      patch.writeCalendarId = write.value;
+      syncAdminCalendarGate(card, patch, save);
+    });
     card.appendChild(write);
+    card.appendChild(calendarGoneNotice('write'));
 
     var busyLabel = fieldLabel('空き判定に使うカレンダー', '予定が入っている時間を空きから除外するカレンダーです。複数選べます。');
     busyLabel.style.marginTop = '18px';
@@ -1271,12 +1387,14 @@
         if (cb.checked) set[cal.id] = true;
         else delete set[cal.id];
         patch.busyCalendarIds = Object.keys(set);
+        syncAdminCalendarGate(card, patch, save);
       });
       lab.appendChild(cb);
       lab.appendChild(document.createTextNode(calendarOptionLabel(cal)));
       cals.appendChild(lab);
     });
     card.appendChild(cals);
+    card.appendChild(calendarGoneNotice('busy'));
 
     var actions = document.createElement('div');
     actions.className = 'actions';
@@ -1289,6 +1407,12 @@
       var hoursError = weekHoursErrorMessage(patch.weekHours);
       if (hoursError) {
         state.error = hoursError;
+        render();
+        return;
+      }
+      var gone = adminCalendarGoneMessage(patch);
+      if (gone) {
+        state.error = gone;
         render();
         return;
       }
@@ -1310,6 +1434,7 @@
     });
     actions.appendChild(save);
     card.appendChild(actions);
+    syncAdminCalendarGate(card, patch, save);
     shell.appendChild(card);
     return shell;
   }
@@ -1319,6 +1444,59 @@
     if (cal.primary) name += '（メイン）';
     else if (cal.owned === false) name += '（共有）';
     return name;
+  }
+
+  function adminCalendarExists(id) {
+    var want = String(id || '');
+    if (!want) return false;
+    var list = (state.admin && state.admin.calendars) || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === want) return true;
+      if (want === 'primary' && list[i].primary) return true;
+    }
+    return false;
+  }
+
+  function pruneAdminBusyCalendars(patch) {
+    patch.busyCalendarIds = (patch.busyCalendarIds || []).filter(function (id) {
+      return adminCalendarExists(id);
+    });
+  }
+
+  function adminCalendarGoneMessage(patch) {
+    if (!adminCalendarExists(patch.writeCalendarId)) {
+      return 'このカレンダーはもうありません。選び直してください。';
+    }
+    if (!(patch.busyCalendarIds || []).length) {
+      return 'このカレンダーはもうありません。選び直してください。';
+    }
+    return '';
+  }
+
+  function calendarGoneNotice(kind) {
+    var err = document.createElement('div');
+    err.className = 'error';
+    err.setAttribute('data-cal-gone', kind);
+    err.textContent = 'このカレンダーはもうありません。選び直してください。';
+    err.hidden = true;
+    return err;
+  }
+
+  function syncAdminCalendarGate(card, patch, save) {
+    var writeGone = !adminCalendarExists(patch.writeCalendarId);
+    var busyGone = !(patch.busyCalendarIds || []).length;
+    var any = writeGone || busyGone;
+    var nodes = card.querySelectorAll('[data-cal-gone]');
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var kind = nodes[i].getAttribute('data-cal-gone');
+      var show = false;
+      if (kind === 'any') show = any;
+      else if (kind === 'write') show = writeGone;
+      else if (kind === 'busy') show = busyGone;
+      nodes[i].hidden = !show;
+    }
+    if (save) save.disabled = state.submitting || any;
   }
 
   function sortedAdminCalendars() {

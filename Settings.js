@@ -47,6 +47,7 @@ function saveSettings_(patch) {
   if (!next.busyCalendarIds || !next.busyCalendarIds.length) {
     throw new Error('空き判定に使うカレンダーを1つ以上選んでください。');
   }
+  next.busyCalendarIds = assertCalendarsExist_(next.writeCalendarId, next.busyCalendarIds);
   next.bufferMin = Math.max(0, Number(next.bufferMin) || 0);
   next.minNoticeMin = Math.max(0, Number(next.minNoticeMin) || 0);
   next.maxDaysAhead = Math.min(90, Math.max(1, Number(next.maxDaysAhead) || 28));
@@ -149,6 +150,37 @@ function assertAllowedEmail_(email, domains) {
     if (domain === list[i]) return;
   }
   throw new Error('このドメインのメールアドレスでは予約できません。');
+}
+
+function calendarIdExistsForAdmin_(id, calendars) {
+  var want = String(id || '');
+  if (!want) return false;
+  var list = calendars || [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].id === want) return true;
+    if (want === 'primary' && list[i] && list[i].primary) return true;
+  }
+  return false;
+}
+
+function assertCalendarsExist_(writeId, busyIds) {
+  var calendars = listCalendarsForAdmin_();
+  if (!calendarIdExistsForAdmin_(writeId, calendars)) {
+    throw new Error('このカレンダーはもうありません。選び直してください。');
+  }
+  var live = [];
+  var src = busyIds || [];
+  var seen = {};
+  for (var i = 0; i < src.length; i++) {
+    var id = src[i];
+    if (seen[id] || !calendarIdExistsForAdmin_(id, calendars)) continue;
+    seen[id] = true;
+    live.push(id);
+  }
+  if (!live.length) {
+    throw new Error('このカレンダーはもうありません。選び直してください。');
+  }
+  return live;
 }
 
 function pad2_(n) {

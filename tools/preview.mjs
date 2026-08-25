@@ -59,7 +59,7 @@ function renderIndex(page, token) {
   html = html.replace(/<\?!= pageTitle \?>/g, pageTitle(page));
   html = html.replace(
     /<\?!= bootstrapJson \?>/g,
-    JSON.stringify({ page: page, token: token, adminKey: page === 'admin' ? 'preview' : '' }),
+    JSON.stringify({ page: page, token: token, adminKey: page === 'admin' ? 'preview' : '', webAppUrl: '/' }),
   );
   html = html.replace('<div id="app"></div>', '<div id="app"></div>\n' + MOCK_SCRIPT);
   return html;
@@ -247,6 +247,21 @@ const MOCK_SCRIPT = String.raw`
       };
     },
     adminSaveSettings: function (_key, patch) {
+      if (patch && patch.writeCalendarId) {
+        var calIds = { primary: true, private: true, work: true };
+        if (!calIds[patch.writeCalendarId]) {
+          throw new Error('このカレンダーはもうありません。選び直してください。');
+        }
+        var busyIds = patch.busyCalendarIds || [];
+        var liveBusy = [];
+        for (var bi = 0; bi < busyIds.length; bi++) {
+          if (calIds[busyIds[bi]]) liveBusy.push(busyIds[bi]);
+        }
+        if (!liveBusy.length) {
+          throw new Error('このカレンダーはもうありません。選び直してください。');
+        }
+        patch.busyCalendarIds = liveBusy;
+      }
       if (patch && patch.weekHours) {
         var names = ['日曜', '月曜', '火曜', '水曜', '木曜', '金曜', '土曜'];
         for (var d = 0; d <= 6; d++) {
