@@ -19,37 +19,55 @@
 
 ## 導入方法
 
-相手に渡すのは **予約ページの URL だけ** です。管理画面の URL と管理キーは渡さないでください。
+GitHub からクローンし、自分の Google アカウントへデプロイします。相手に渡すのは **予約ページの URL だけ** です。管理画面の URL と管理キーは渡さないでください。
 
 ### 必要なもの
 
-- ホスト側の Google アカウント（カレンダーを読書きし、メールを送る権限が必要です）
-- このリポジトリ
-- コマンドラインで [clasp](https://github.com/google/clasp) を使えること
+- [Git](https://git-scm.com/)
+- [Node.js](https://nodejs.org/)（`clasp` と、任意のローカルプレビュー用）
+- ホスト側の Google アカウント（カレンダーの読書きとメール送信の権限が必要です）
 
-### 1. スクリプトを Google に上げる
+### 1. リポジトリをクローンする
+
+```bash
+git clone https://github.com/NameOfSummer/slotly.git
+cd slotly
+```
+
+SSH を使う場合:
+
+```bash
+git clone git@github.com:NameOfSummer/slotly.git
+cd slotly
+```
+
+`.clasp.json`（どの Apps Script プロジェクトに上げるか）はこのリポジトリに含まれていません。クローンしただけでは Google 上には何も作られません。次の手順で自分用のプロジェクトを作ります。
+
+### 2. clasp でログインし、スクリプトを Google に上げる
 
 ```bash
 npm i -g @google/clasp
 clasp login
 ```
 
-このフォルダでスタンドアロンの Apps Script プロジェクトを作り、アップロードします。
+クローンしたフォルダで、スタンドアロンの Apps Script プロジェクトを作り、アップロードします。
 
 ```bash
 clasp create --type standalone --title Slotly
 clasp push
 ```
 
-すでに `.clasp.json` がある場合は `clasp create` は不要です。`clasp push` だけで更新できます。
+`clasp create` が `.clasp.json` を作ります。このファイルは Git に含めないでください（他人のプロジェクトを上書きしないため）。
 
-### 2. Google Calendar API を有効にする
+すでに自分の `.clasp.json` があるフォルダでは `clasp create` は不要です。コードを直したあとは `clasp push` だけで更新できます。
+
+### 3. Google Calendar API を有効にする
 
 Apps Script エディタ（`clasp open`）で **サービス → Google Calendar API** を追加します。`appsscript.json` に書いてあれば、push した時点で付いていることもあります。
 
 Meet 付きの予定作成と、空き時間の判定に使います。
 
-### 3. 初回セットアップ（管理キーとデータシート）
+### 4. 初回セットアップ（管理キーとデータシート）
 
 エディタから関数 `setupSlotly` を実行します。初回はカレンダー・スプレッドシート・メール送信の権限確認が出ます。許可してください。
 
@@ -61,7 +79,7 @@ Meet 付きの予定作成と、空き時間の判定に使います。
 
 `setupSlotly` を再度実行しても、既存の管理キーとシートは使い回します。キーは変わりません。
 
-### 4. ウェブアプリとしてデプロイする
+### 5. ウェブアプリとしてデプロイする
 
 エディタで **デプロイ → 新しいデプロイ → 種類: ウェブアプリ**。
 
@@ -74,7 +92,7 @@ Meet 付きの予定作成と、空き時間の判定に使います。
 
 コードを直したあとは **デプロイ → デプロイを管理 → 編集 → 新しいバージョン** で、同じ URL のまま更新します。
 
-### 5. 管理画面で最初の設定をする
+### 6. 管理画面で最初の設定をする
 
 ```
 (予約ページのURL)?page=admin&key=管理キー
@@ -98,6 +116,8 @@ Meet 付きの予定作成と、空き時間の判定に使います。
 ---
 
 ## 使い方
+
+導入（クローン → デプロイ → 管理画面で保存）が終わっている前提です。
 
 ### ゲスト（予約する側）
 
@@ -135,8 +155,16 @@ Meet 付きの予定作成と、空き時間の判定に使います。
 
 やり方の例:
 
-1. このフォルダをコピーする（またはエディタでスクリプトのコピーを作る）
-2. コピー側では既存の `.clasp.json` を使わず、`clasp create --type standalone --title Slotly（用途名）` で別プロジェクトにする
+1. リポジトリをもう一度クローンする（別フォルダにする）
+
+```bash
+git clone https://github.com/NameOfSummer/slotly.git slotly-別用途
+cd slotly-別用途
+```
+
+エディタで既存プロジェクトの「コピーを作成」でも構いません。その場合はコピー側の `.clasp.json` を使います。
+
+2. コピー側では、元の `.clasp.json` を使わず `clasp create --type standalone --title Slotly（用途名）` で別プロジェクトにする
 3. `clasp push` → `setupSlotly` → ウェブアプリを新たにデプロイ
 4. 管理画面で、その表用の受付時間とカレンダーを設定する
 
@@ -198,9 +226,11 @@ Slotly をアンインストールする専用画面はありません。Google 
 
 ## 開発者向け
 
-GAS に上げる前に、UI だけ見る場合:
+クローンしたフォルダで、GAS に上げる前に UI だけ見る場合:
 
 ```bash
+git clone https://github.com/NameOfSummer/slotly.git
+cd slotly
 node tools/preview.mjs
 ```
 
