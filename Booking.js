@@ -11,6 +11,7 @@ function createBooking_(payload) {
   if (!name || name.length > 80) throw new Error('お名前を入力してください。');
   if (eventTitle.length > 80) throw new Error('予定のタイトルは80文字以内にしてください。');
   if (!isValidEmail_(email)) throw new Error('メールアドレスの形式が正しくありません。');
+  assertAllowedEmail_(email, getSettings_().allowedEmailDomains);
   if (note.length > 1000) throw new Error('メモは1000文字以内にしてください。');
   if (!startIso) throw new Error('日時を選んでください。');
 
@@ -41,7 +42,6 @@ function createBooking_(payload) {
       note: note,
       durationMin: durationMin,
       withMeet: withMeet,
-      cancelUrl: cancelUrl,
     });
 
     var created = insertCalendarEvent_({
@@ -168,10 +168,6 @@ function buildEventDescription_(info) {
     '場所: ' + formatLocationPlain_(info.withMeet, info.meetUrl),
   );
   if (info.note) lines.push('説明: ' + info.note);
-  if (info.cancelUrl) {
-    lines.push('');
-    lines.push('キャンセル: ' + info.cancelUrl);
-  }
   return lines.join('\n');
 }
 

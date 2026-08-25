@@ -61,6 +61,7 @@ function getPublicConfig() {
     durations: listDurations_(),
     maxDaysAhead: settings.maxDaysAhead,
     minNoticeMin: settings.minNoticeMin,
+    allowedEmailDomains: settings.allowedEmailDomains || [],
   };
 }
 

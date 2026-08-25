@@ -170,7 +170,8 @@ const MOCK_SCRIPT = String.raw`
         timezone: 'Asia/Tokyo',
         durations: listDurations(),
         maxDaysAhead: 28,
-        minNoticeMin: 120
+        minNoticeMin: 120,
+        allowedEmailDomains: previewSettings.allowedEmailDomains || []
       };
     },
     getSlots: function (durationMin) {
@@ -181,6 +182,15 @@ const MOCK_SCRIPT = String.raw`
       var eventTitle = String(payload.eventTitle || '').trim();
       if (eventTitle.length > 80) throw new Error('予定のタイトルは80文字以内にしてください。');
       if (!payload.email || payload.email.indexOf('@') === -1) throw new Error('メールアドレスの形式が正しくありません。');
+      var allowed = previewSettings.allowedEmailDomains || [];
+      if (allowed.length) {
+        var domain = String(payload.email).slice(String(payload.email).lastIndexOf('@') + 1).replace(/\.+$/, '').trim().toLowerCase();
+        var okDomain = false;
+        for (var di = 0; di < allowed.length; di++) {
+          if (domain === String(allowed[di] || '').toLowerCase()) okDomain = true;
+        }
+        if (!okDomain) throw new Error('このドメインのメールアドレスでは予約できません。');
+      }
       if (busy[payload.startIso]) throw new Error('その時間は埋まりました。別の時間を選んでください。');
       var start = new Date(payload.startIso);
       var end = new Date(start.getTime() + payload.durationMin * 60000);
@@ -226,7 +236,8 @@ const MOCK_SCRIPT = String.raw`
           maxDaysAhead: 28,
           writeCalendarId: 'primary',
           busyCalendarIds: ['primary', 'private'],
-          weekHours: previewSettings.weekHours
+          weekHours: previewSettings.weekHours,
+          allowedEmailDomains: previewSettings.allowedEmailDomains || []
         },
         calendars: [
           { id: 'primary', name: 'メイン', primary: true },
@@ -258,6 +269,24 @@ const MOCK_SCRIPT = String.raw`
         }
       }
       previewSettings = Object.assign({}, previewSettings, patch || {});
+      if (previewSettings.allowedEmailDomains != null) {
+        var raw = previewSettings.allowedEmailDomains;
+        var text = Object.prototype.toString.call(raw) === '[object Array]' ? raw.join('\n') : String(raw || '');
+        var parts = text.split(/[\s,;]+/);
+        var seen = {};
+        var out = [];
+        for (var pi = 0; pi < parts.length; pi++) {
+          var d = String(parts[pi] || '').replace(/^@+/, '').replace(/\.+$/, '').trim().toLowerCase();
+          if (!d) continue;
+          if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(d)) {
+            throw new Error('メールドメインの形式が正しくありません（' + d + '）。');
+          }
+          if (seen[d]) continue;
+          seen[d] = true;
+          out.push(d);
+        }
+        previewSettings.allowedEmailDomains = out;
+      }
       persist();
       return previewSettings;
     }

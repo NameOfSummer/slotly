@@ -307,6 +307,40 @@
     return el;
   }
 
+  var toastTimer = 0;
+  var toastHideTimer = 0;
+
+  function showToast(message) {
+    var host = document.getElementById('toast-host');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'toast-host';
+      host.className = 'toast-host';
+      document.body.appendChild(host);
+    }
+    host.innerHTML = '';
+    var toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.appendChild(icon('check_circle'));
+    var text = document.createElement('span');
+    text.textContent = message;
+    toast.appendChild(text);
+    host.appendChild(toast);
+    void toast.offsetWidth;
+    toast.classList.add('is-in');
+    if (toastTimer) window.clearTimeout(toastTimer);
+    if (toastHideTimer) window.clearTimeout(toastHideTimer);
+    toastTimer = window.setTimeout(function () {
+      toast.classList.remove('is-in');
+      toast.classList.add('is-out');
+      toastHideTimer = window.setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 220);
+    }, 2800);
+  }
+
   var helpTipSeq = 0;
 
   function closeHelpTips(except) {
@@ -547,6 +581,13 @@
     return wrap;
   }
 
+  function pageFoot() {
+    var p = document.createElement('p');
+    p.className = 'page-foot';
+    p.textContent = 'このページの URL は、予約する相手以外には共有しないでください。';
+    return p;
+  }
+
   function helpCopy() {
     if (state.view === 'admin') {
       return [
@@ -651,6 +692,7 @@
     shell.appendChild(layout);
 
     if (state.selectedStart) shell.appendChild(renderDrawer());
+    shell.appendChild(pageFoot());
     return shell;
   }
 
@@ -880,7 +922,7 @@
     }
     inner.appendChild(inputField('お名前', 'name', 'text', '予約者の名前です。カレンダー招待にも使います。'));
     inner.appendChild(inputField('予定のタイトル（任意）', 'eventTitle', 'text', 'カレンダーに追加されるイベントのタイトルです。空欄の場合自動で決まります。'));
-    inner.appendChild(inputField('メールアドレス', 'email', 'email', '予約確定の案内と、カレンダー招待の送付先です。キャンセル時の連絡にも使います。'));
+    inner.appendChild(inputField('メールアドレス', 'email', 'email', emailFieldHint()));
     inner.appendChild(inputField('説明（任意）', 'note', 'textarea', 'ホストへの連絡事項です。カレンダー予定の説明にも入ります。'));
     var actions = document.createElement('div');
     actions.className = 'actions';
@@ -942,6 +984,7 @@
       spin.className = 'spinner';
       card.appendChild(spin);
       shell.appendChild(card);
+      shell.appendChild(pageFoot());
       return shell;
     }
     var status = document.createElement('div');
@@ -972,6 +1015,7 @@
     note.textContent = '確定メールを送りました。メール内のリンクからもキャンセルできます。';
     card.appendChild(note);
     shell.appendChild(card);
+    shell.appendChild(pageFoot());
     return shell;
   }
 
@@ -986,6 +1030,7 @@
       spin.className = 'spinner';
       card.appendChild(spin);
       shell.appendChild(card);
+      shell.appendChild(pageFoot());
       return shell;
     }
     if (state.error) {
@@ -1047,6 +1092,7 @@
       }
     }
     shell.appendChild(card);
+    shell.appendChild(pageFoot());
     return shell;
   }
 
@@ -1075,6 +1121,12 @@
     }
     var patch = state.adminPatch;
     card.appendChild(adminText('表示名', 'hostName', patch.hostName || '', '予約ページの見出しに表示します。'));
+    card.appendChild(adminTextarea(
+      '許可するメールドメイン',
+      'allowedEmailDomains',
+      patch.allowedEmailDomains,
+      '空欄なら制限しません。1行に1つ、@ は不要です。例: example.com'
+    ));
     card.appendChild(adminSelect('タイムゾーン', 'timezone', patch.timezone || 'Asia/Tokyo', TIMEZONES, '空き時間と予約の表示に使うタイムゾーンです。'));
     card.appendChild(adminNumber('会議前後のバッファ（分）', 'bufferMin', patch.bufferMin, 'カレンダー上の予定の前後に、この分数だけ予約を入れられなくします。'));
     card.appendChild(adminNumber('最短何分前まで予約可', 'minNoticeMin', patch.minNoticeMin, 'いまからこの分数以内の枠は予約できません。'));
@@ -1192,10 +1244,11 @@
     writeLabel.style.marginTop = '18px';
     card.appendChild(writeLabel);
     var write = document.createElement('select');
-    (state.admin.calendars || []).forEach(function (cal) {
+    var adminCals = sortedAdminCalendars();
+    adminCals.forEach(function (cal) {
       var opt = document.createElement('option');
       opt.value = cal.id;
-      opt.textContent = cal.name + (cal.primary ? '（メイン）' : '');
+      opt.textContent = calendarOptionLabel(cal);
       if (cal.id === patch.writeCalendarId) opt.selected = true;
       write.appendChild(opt);
     });
@@ -1207,7 +1260,7 @@
     card.appendChild(busyLabel);
     var cals = document.createElement('div');
     cals.className = 'cals';
-    (state.admin.calendars || []).forEach(function (cal) {
+    adminCals.forEach(function (cal) {
       var lab = document.createElement('label');
       var cb = document.createElement('input');
       cb.type = 'checkbox';
@@ -1220,7 +1273,7 @@
         patch.busyCalendarIds = Object.keys(set);
       });
       lab.appendChild(cb);
-      lab.appendChild(document.createTextNode(cal.name + (cal.primary ? '（メイン）' : '')));
+      lab.appendChild(document.createTextNode(calendarOptionLabel(cal)));
       cals.appendChild(lab);
     });
     card.appendChild(cals);
@@ -1248,6 +1301,7 @@
         state.submitting = false;
         state.error = '';
         render();
+        showToast('保存しました');
       }).catch(function (e) {
         state.submitting = false;
         state.error = errMessage(e);
@@ -1258,6 +1312,23 @@
     card.appendChild(actions);
     shell.appendChild(card);
     return shell;
+  }
+
+  function calendarOptionLabel(cal) {
+    var name = cal.name || cal.id || 'カレンダー';
+    if (cal.primary) name += '（メイン）';
+    else if (cal.owned === false) name += '（共有）';
+    return name;
+  }
+
+  function sortedAdminCalendars() {
+    return (state.admin.calendars || []).slice().sort(function (a, b) {
+      var an = String(a.name || a.id || '');
+      var bn = String(b.name || b.id || '');
+      var cmp = an.localeCompare(bn, 'ja');
+      if (cmp !== 0) return cmp;
+      return String(a.id || '').localeCompare(String(b.id || ''), 'ja');
+    });
   }
 
   function adminSelect(label, key, value, options, hint) {
@@ -1289,6 +1360,25 @@
     return wrap;
   }
 
+  function emailFieldHint() {
+    var base = '予約確定の案内と、カレンダー招待の送付先です。キャンセル時の連絡にも使います。';
+    var list = (state.config && state.config.allowedEmailDomains) || [];
+    if (!list.length) return base;
+    return base + ' ' + list.map(function (d) { return '@' + d; }).join('、') + ' のみ予約できます。';
+  }
+
+  function emailDomainAllowed(email) {
+    var list = (state.config && state.config.allowedEmailDomains) || [];
+    if (!list.length) return true;
+    var at = String(email || '').lastIndexOf('@');
+    if (at < 0) return false;
+    var domain = String(email).slice(at + 1).replace(/\.+$/, '').trim().toLowerCase();
+    for (var i = 0; i < list.length; i++) {
+      if (domain === String(list[i] || '').toLowerCase()) return true;
+    }
+    return false;
+  }
+
   function adminText(label, key, value, hint) {
     var wrap = document.createElement('div');
     wrap.className = 'field';
@@ -1296,6 +1386,23 @@
     var input = document.createElement('input');
     input.type = 'text';
     input.value = value;
+    input.addEventListener('input', function () { state.adminPatch[key] = input.value; });
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function adminTextarea(label, key, value, hint) {
+    var wrap = document.createElement('div');
+    wrap.className = 'field';
+    wrap.appendChild(fieldLabel(label, hint));
+    var input = document.createElement('textarea');
+    if (Object.prototype.toString.call(value) === '[object Array]') {
+      input.value = value.join('\n');
+    } else {
+      input.value = value == null ? '' : String(value);
+    }
+    input.rows = 3;
+    input.placeholder = 'example.com';
     input.addEventListener('input', function () { state.adminPatch[key] = input.value; });
     wrap.appendChild(input);
     return wrap;
@@ -1315,6 +1422,11 @@
 
   function submitBooking() {
     if (state.submitting) return;
+    if (!emailDomainAllowed(state.form.email)) {
+      state.error = 'このドメインのメールアドレスでは予約できません。';
+      render();
+      return;
+    }
     state.submitting = true;
     state.error = '';
     render();

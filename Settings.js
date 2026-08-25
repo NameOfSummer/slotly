@@ -22,6 +22,7 @@ function defaultSettings_() {
     slotIntervalMin: DURATION_STEP,
     writeCalendarId: 'primary',
     busyCalendarIds: ['primary'],
+    allowedEmailDomains: [],
   };
 }
 
@@ -50,6 +51,7 @@ function saveSettings_(patch) {
   next.minNoticeMin = Math.max(0, Number(next.minNoticeMin) || 0);
   next.maxDaysAhead = Math.min(90, Math.max(1, Number(next.maxDaysAhead) || 28));
   next.timezone = next.timezone || 'Asia/Tokyo';
+  next.allowedEmailDomains = normalizeEmailDomains_(next.allowedEmailDomains);
   assertWeekHoursValid_(next.weekHours);
   next.weekHours = normalizeWeekHours_(next.weekHours);
   getScriptProps_().setProperty(SETTINGS_KEY, JSON.stringify(next));
@@ -110,6 +112,43 @@ function initializeSlotly_() {
     spreadsheetUrl: ss.getUrl(),
     spreadsheetId: ss.getId(),
   };
+}
+
+function normalizeEmailDomains_(raw) {
+  var text = Object.prototype.toString.call(raw) === '[object Array]'
+    ? raw.join('\n')
+    : String(raw || '');
+  var parts = text.split(/[\s,;]+/);
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < parts.length; i++) {
+    var d = String(parts[i] || '').replace(/^@+/, '').replace(/\.+$/, '').trim().toLowerCase();
+    if (!d) continue;
+    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(d)) {
+      throw new Error('メールドメインの形式が正しくありません（' + d + '）。');
+    }
+    if (seen[d]) continue;
+    seen[d] = true;
+    out.push(d);
+  }
+  if (out.length > 50) throw new Error('許可ドメインは50件までです。');
+  return out;
+}
+
+function emailDomain_(email) {
+  var at = String(email || '').lastIndexOf('@');
+  if (at < 0) return '';
+  return String(email).slice(at + 1).replace(/\.+$/, '').trim().toLowerCase();
+}
+
+function assertAllowedEmail_(email, domains) {
+  var list = domains || [];
+  if (!list.length) return;
+  var domain = emailDomain_(email);
+  for (var i = 0; i < list.length; i++) {
+    if (domain === list[i]) return;
+  }
+  throw new Error('このドメインのメールアドレスでは予約できません。');
 }
 
 function pad2_(n) {
@@ -189,12 +228,63 @@ function normalizeWeekHours_(weekHours) {
 }
 
 function listCalendarsForAdmin_() {
-  return CalendarApp.getAllCalendars().map(function (cal) {
+  var list;
+  if (typeof Calendar !== 'undefined' && Calendar.CalendarList) {
+    try {
+      list = listCalendarsViaCalendarList_();
+      return sortCalendarsByDisplayName_(list);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  return sortCalendarsByDisplayName_(CalendarApp.getAllCalendars().map(function (cal) {
+    var id = cal.getId();
     return {
-      id: cal.getId(),
-      name: cal.getName(),
+      id: id,
+      name: calendarDisplayName_(cal.getName(), ''),
       primary: cal.isMyPrimaryCalendar(),
       owned: typeof cal.isOwnedByMe === 'function' ? cal.isOwnedByMe() : true,
     };
+  }));
+}
+
+function listCalendarsViaCalendarList_() {
+  var items = [];
+  var pageToken = null;
+  do {
+    var params = {
+      maxResults: 250,
+      showDeleted: false,
+      showHidden: true,
+    };
+    if (pageToken) params.pageToken = pageToken;
+    var res = Calendar.CalendarList.list(params);
+    items = items.concat(res.items || []);
+    pageToken = res.nextPageToken || null;
+  } while (pageToken);
+
+  return items.filter(function (item) {
+    return item && item.id && !item.deleted;
+  }).map(function (item) {
+    return {
+      id: item.id,
+      name: calendarDisplayName_(item.summary, item.summaryOverride),
+      primary: !!item.primary,
+      owned: item.accessRole === 'owner',
+    };
+  });
+}
+
+function calendarDisplayName_(summary, override) {
+  return String(override || '').trim() || String(summary || '').trim() || 'カレンダー';
+}
+
+function sortCalendarsByDisplayName_(cals) {
+  return (cals || []).slice().sort(function (a, b) {
+    var an = String((a && a.name) || '');
+    var bn = String((b && b.name) || '');
+    var cmp = an.localeCompare(bn, 'ja');
+    if (cmp !== 0) return cmp;
+    return String((a && a.id) || '').localeCompare(String((b && b.id) || ''), 'ja');
   });
 }
