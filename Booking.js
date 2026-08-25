@@ -30,18 +30,15 @@ function createBooking_(payload) {
     }
 
     var settings = getSettings_();
-    var title = eventTitle || buildEventTitle_(settings, name);
+    var title = eventTitle || buildEventTitle_(name);
     var token = Utilities.getUuid();
     var webUrl = ScriptApp.getService().getUrl() || '';
     var cancelUrl = webUrl ? webUrl + '?page=cancel&token=' + token : '';
     var icsUrl = webUrl ? webUrl + '?page=ics&token=' + token : '';
     var description = buildEventDescription_({
-      title: title,
       name: name,
       email: email,
       note: note,
-      durationMin: durationMin,
-      withMeet: withMeet,
     });
 
     var created = insertCalendarEvent_({
@@ -151,23 +148,18 @@ function publicBookingView_(booking, urls) {
   };
 }
 
-function buildEventTitle_(settings, guestName) {
-  var host = settings.hostName ? settings.hostName + ' / ' : '';
-  return host + guestName + ' さん（Slotly）';
+function buildEventTitle_(guestName) {
+  return guestName + ' さんとのミーティング（Slotly）';
 }
 
 function buildEventDescription_(info) {
-  var lines = [
-    'Slotly からの予約です。',
-  ];
-  if (info.title) lines.push('予定のタイトル: ' + info.title);
-  lines.push(
-    '予約者: ' + info.name,
-    'メール: ' + info.email,
-    '所要時間: ' + formatDurationJa_(info.durationMin),
-    '場所: ' + formatLocationPlain_(info.withMeet, info.meetUrl),
-  );
-  if (info.note) lines.push('説明: ' + info.note);
+  var lines = [];
+  if (info.name) lines.push('予約者: ' + info.name);
+  if (info.email) lines.push('メール: ' + info.email);
+  if (info.note) {
+    if (lines.length) lines.push('');
+    lines.push(info.note);
+  }
   return lines.join('\n');
 }
 
@@ -189,14 +181,11 @@ function googleTemplateUrl_(booking) {
 }
 
 function buildGoogleDetails_(booking) {
-  var lines = [];
-  if (booking.title) lines.push('予定のタイトル: ' + booking.title);
-  if (booking.guestName) lines.push('予約者: ' + booking.guestName);
-  if (booking.durationMin) lines.push('所要時間: ' + formatDurationJa_(booking.durationMin));
-  lines.push('場所: ' + formatLocationPlain_(booking.withMeet, booking.meetUrl));
-  if (booking.note) lines.push('説明: ' + booking.note);
-  lines.push('予約システム: Slotly');
-  return lines.join('\n');
+  return buildEventDescription_({
+    name: booking.guestName,
+    email: booking.guestEmail,
+    note: booking.note,
+  });
 }
 
 function serveIcs_(token) {

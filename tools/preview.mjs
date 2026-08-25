@@ -199,7 +199,7 @@ const MOCK_SCRIPT = String.raw`
       var row = {
         token: token,
         status: 'confirmed',
-        title: eventTitle || (payload.name + ' さん（Slotly）'),
+        title: eventTitle || (payload.name + ' さんとのミーティング（Slotly）'),
         guestName: payload.name,
         guestEmail: payload.email,
         startIso: start.toISOString(),

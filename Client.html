@@ -1021,7 +1021,7 @@
       inner.appendChild(err);
     }
     inner.appendChild(inputField('お名前', 'name', 'text', '予約者の名前です。カレンダー招待にも使います。'));
-    inner.appendChild(inputField('予定のタイトル（任意）', 'eventTitle', 'text', 'カレンダーに追加されるイベントのタイトルです。空欄の場合自動で決まります。'));
+    inner.appendChild(inputField('予定のタイトル（任意）', 'eventTitle', 'text', 'カレンダーに追加されるイベントのタイトルです。空欄なら「お名前 さんとのミーティング（Slotly）」になります。'));
     inner.appendChild(inputField('メールアドレス', 'email', 'email', emailFieldHint()));
     inner.appendChild(inputField('説明（任意）', 'note', 'textarea', 'ホストへの連絡事項です。カレンダー予定の説明にも入ります。'));
     var actions = document.createElement('div');
