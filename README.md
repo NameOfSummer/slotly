@@ -335,7 +335,7 @@ node --test tools/deploy-gas.test.mjs
 - GAS のサーバー処理はルートの `*.js`（`Code.js`、`Booking.js`、`Settings.js`、`Store.js`、`Time.js`、`CalendarIO.js`、`Availability.js`）
 - 画面は `src/`。ページは `src/pages/`、共通部品は `src/components/`、shadcn の部品は `src/components/ui/`、型と API は `src/lib/`
 - `src/` のファイル名はケバブケース（`book-page.tsx`、`page-shell.tsx`、`gas-api.ts`）
-- `WebApp.html` は `npm run build:gas` の出力。手で編集しない
+- `WebApp.html` は `npm run build:gas` の出力。手で編集せず、Git にも入れない
 - フォントは CDN から読む。woff を HTML に埋め込まない（`src/fonts.css` / `src/fonts-gas.css`）
 
 ### 言語とコメント
