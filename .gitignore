@@ -2,4 +2,6 @@
 .clasp.deploy.json
 .DS_Store
 node_modules/
+dist/
+gas-dist/
 .tmp-chrome-profile/

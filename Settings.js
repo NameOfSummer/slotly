@@ -1,7 +1,20 @@
+/**
+ * 設定を保存するプロパティ名。
+ */
 var SETTINGS_KEY = 'SLOTL_SETTINGS';
+/**
+ * 管理キーのプロパティ名。
+ */
 var ADMIN_KEY_PROP = 'ADMIN_KEY';
+/**
+ * 予約シート ID のプロパティ名。
+ */
 var SHEET_ID_PROP = 'SPREADSHEET_ID';
 
+/**
+ * 初期の受付設定を返す。
+ * @returns 設定。
+ */
 function defaultSettings_() {
   var weekHours = {
     '0': null,
@@ -26,10 +39,18 @@ function defaultSettings_() {
   };
 }
 
+/**
+ * スクリプトプロパティを返す。
+ * @returns プロパティ。
+ */
 function getScriptProps_() {
   return PropertiesService.getScriptProperties();
 }
 
+/**
+ * 保存済みの設定を返す。
+ * @returns 設定。
+ */
 function getSettings_() {
   var raw = getScriptProps_().getProperty(SETTINGS_KEY);
   var parsed = raw ? JSON.parse(raw) : {};
@@ -38,6 +59,11 @@ function getSettings_() {
   return merged;
 }
 
+/**
+ * 設定を保存する。
+ * @param patch 上書きする内容。
+ * @returns 保存後の設定。
+ */
 function saveSettings_(patch) {
   var current = getSettings_();
   var next = Object.assign({}, current, patch || {});
@@ -60,6 +86,11 @@ function saveSettings_(patch) {
   return next;
 }
 
+/**
+ * 管理キーを検査する。
+ * @param key 入力されたキー。
+ * @returns {void}
+ */
 function assertAdminKey_(key) {
   var expected = getScriptProps_().getProperty(ADMIN_KEY_PROP);
   if (!expected || String(key || '') !== expected) {
@@ -67,6 +98,10 @@ function assertAdminKey_(key) {
   }
 }
 
+/**
+ * 初期設定が済んでいるか見る。
+ * @returns {void}
+ */
 function ensureConfigured_() {
   var settings = getSettings_();
   var sheetId = getScriptProps_().getProperty(SHEET_ID_PROP);
@@ -76,6 +111,10 @@ function ensureConfigured_() {
   }
 }
 
+/**
+ * 管理キーと予約シートを用意する。
+ * @returns 管理キーとシート情報。
+ */
 function initializeSlotly_() {
   var props = getScriptProps_();
   var adminKey = props.getProperty(ADMIN_KEY_PROP);
@@ -115,6 +154,11 @@ function initializeSlotly_() {
   };
 }
 
+/**
+ * 許可ドメインを整える。
+ * @param raw 入力。
+ * @returns ドメインの配列。
+ */
 function normalizeEmailDomains_(raw) {
   var text = Object.prototype.toString.call(raw) === '[object Array]'
     ? raw.join('\n')
@@ -136,12 +180,23 @@ function normalizeEmailDomains_(raw) {
   return out;
 }
 
+/**
+ * メールからドメインを取る。
+ * @param email メール。
+ * @returns ドメイン。
+ */
 function emailDomain_(email) {
   var at = String(email || '').lastIndexOf('@');
   if (at < 0) return '';
   return String(email).slice(at + 1).replace(/\.+$/, '').trim().toLowerCase();
 }
 
+/**
+ * 許可ドメインか検査する。
+ * @param email メール。
+ * @param domains 許可ドメイン。
+ * @returns {void}
+ */
 function assertAllowedEmail_(email, domains) {
   var list = domains || [];
   if (!list.length) return;
@@ -152,6 +207,12 @@ function assertAllowedEmail_(email, domains) {
   throw new Error('このドメインのメールアドレスでは予約できません。');
 }
 
+/**
+ * 管理画面の一覧にカレンダーがあるか。
+ * @param id カレンダー ID。
+ * @param calendars 一覧。
+ * @returns あれば true。
+ */
 function calendarIdExistsForAdmin_(id, calendars) {
   var want = String(id || '');
   if (!want) return false;
@@ -163,6 +224,12 @@ function calendarIdExistsForAdmin_(id, calendars) {
   return false;
 }
 
+/**
+ * 書き込み先と空き判定のカレンダーが残っているか見る。
+ * @param writeId 書き込み先。
+ * @param busyIds 空き判定。
+ * @returns 残っている空き判定カレンダー。
+ */
 function assertCalendarsExist_(writeId, busyIds) {
   var calendars = listCalendarsForAdmin_();
   if (!calendarIdExistsForAdmin_(writeId, calendars)) {
@@ -183,10 +250,20 @@ function assertCalendarsExist_(writeId, busyIds) {
   return live;
 }
 
+/**
+ * 2桁にゼロ埋めする。
+ * @param n 数。
+ * @returns 2桁の文字列。
+ */
 function pad2_(n) {
   return (n < 10 ? '0' : '') + n;
 }
 
+/**
+ * 曜日ごとの受付時間が正しいか見る。
+ * @param weekHours 受付時間。
+ * @returns {void}
+ */
 function assertWeekHoursValid_(weekHours) {
   var names = ['日曜', '月曜', '火曜', '水曜', '木曜', '金曜', '土曜'];
   var src = weekHours || {};
@@ -225,6 +302,11 @@ function assertWeekHoursValid_(weekHours) {
   }
 }
 
+/**
+ * 1日の受付時間を整える。
+ * @param hours 時間帯。
+ * @returns 時間帯の配列。なければ null。
+ */
 function normalizeDayHours_(hours) {
   if (!hours) return null;
   var list = [];
@@ -250,6 +332,11 @@ function normalizeDayHours_(hours) {
   return cleaned.length ? cleaned : null;
 }
 
+/**
+ * 1週間の受付時間を整える。
+ * @param weekHours 受付時間。
+ * @returns 整えた受付時間。
+ */
 function normalizeWeekHours_(weekHours) {
   var src = weekHours || {};
   var next = {};
@@ -259,6 +346,10 @@ function normalizeWeekHours_(weekHours) {
   return next;
 }
 
+/**
+ * 管理画面用のカレンダー一覧を返す。
+ * @returns カレンダー。
+ */
 function listCalendarsForAdmin_() {
   var list;
   if (typeof Calendar !== 'undefined' && Calendar.CalendarList) {
@@ -280,6 +371,10 @@ function listCalendarsForAdmin_() {
   }));
 }
 
+/**
+ * CalendarList API でカレンダーを取る。
+ * @returns カレンダー。
+ */
 function listCalendarsViaCalendarList_() {
   var items = [];
   var pageToken = null;
@@ -307,10 +402,21 @@ function listCalendarsViaCalendarList_() {
   });
 }
 
+/**
+ * カレンダーの表示名を決める。
+ * @param summary 名前。
+ * @param override 上書き名。
+ * @returns 表示名。
+ */
 function calendarDisplayName_(summary, override) {
   return String(override || '').trim() || String(summary || '').trim() || 'カレンダー';
 }
 
+/**
+ * カレンダーを表示名で並べる。
+ * @param cals カレンダー。
+ * @returns 並べた一覧。
+ */
 function sortCalendarsByDisplayName_(cals) {
   return (cals || []).slice().sort(function (a, b) {
     var an = String((a && a.name) || '');

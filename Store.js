@@ -1,4 +1,10 @@
+/**
+ * 予約シートの名前。
+ */
 var BOOKINGS_SHEET = 'bookings';
+/**
+ * 予約シートの列見出し。
+ */
 var BOOKING_HEADERS = [
   'token',
   'eventId',
@@ -17,12 +23,21 @@ var BOOKING_HEADERS = [
   'cancelledAt',
 ];
 
+/**
+ * 予約データ用スプレッドシートを開く。
+ * @returns スプレッドシート。
+ */
 function openDataSpreadsheet_() {
   var id = getScriptProps_().getProperty(SHEET_ID_PROP);
   if (!id) throw new Error('予約データシートがありません。setupSlotly を実行してください。');
   return SpreadsheetApp.openById(id);
 }
 
+/**
+ * 予約シートを用意する。
+ * @param ss スプレッドシート。
+ * @returns シート。
+ */
 function ensureBookingsSheet_(ss) {
   ss = ss || openDataSpreadsheet_();
   var sheet = ss.getSheetByName(BOOKINGS_SHEET);
@@ -38,6 +53,11 @@ function ensureBookingsSheet_(ss) {
   return sheet;
 }
 
+/**
+ * 予約を1行追加する。
+ * @param row 予約。
+ * @returns 追加した予約。
+ */
 function appendBooking_(row) {
   var sheet = ensureBookingsSheet_();
   sheet.appendRow([
@@ -60,6 +80,11 @@ function appendBooking_(row) {
   return row;
 }
 
+/**
+ * トークンで予約行を探す。
+ * @param token 予約トークン。
+ * @returns 行。なければ null。
+ */
 function findBookingRow_(token) {
   if (!token) return null;
   var sheet = ensureBookingsSheet_();
@@ -74,6 +99,11 @@ function findBookingRow_(token) {
   return null;
 }
 
+/**
+ * シートの行を予約オブジェクトにする。
+ * @param cells セルの値。
+ * @returns 予約。
+ */
 function rowToBooking_(cells) {
   return {
     token: String(cells[0]),
@@ -94,6 +124,12 @@ function rowToBooking_(cells) {
   };
 }
 
+/**
+ * 予約をキャンセル済みにする。
+ * @param rowNumber 行番号。
+ * @param whenIso キャンセル日時。
+ * @returns {void}
+ */
 function markBookingCancelled_(rowNumber, whenIso) {
   var sheet = ensureBookingsSheet_();
   sheet.getRange(rowNumber, 11).setValue('cancelled');
