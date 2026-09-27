@@ -73,10 +73,10 @@ function gasHtmlPlugin(projectRoot: string): Plugin {
         .join("\n")
       return html
         .replace(/\s*<link rel="icon"[^>]*>\s*/i, "\n")
-        .replace(/<title>[\s\S]*?<\/title>/, "<title><?!= pageTitle ?></title>")
+        .replace(/<title>[\s\S]*?<\/title>/, "<title>__SLOTL_PAGE_TITLE__</title>")
         .replace(
           /<script id="bootstrap"[^>]*>[\s\S]*?<\/script>/,
-          '<script id="bootstrap" type="application/json"><?!= bootstrapJson ?></script>'
+          '<script id="bootstrap" type="application/json">__SLOTL_BOOTSTRAP__</script>'
         )
         .replace("</head>", `${links}\n  </head>`)
     },
@@ -131,6 +131,7 @@ function inlineBuiltHtml(html: string, outDir: string): string {
 function escapeForGasScript(js: string): string {
   return js
     .replace(/\bimport\.meta\b/g, "undefined")
+    .replace(/<\?/g, "<\\u003f")
     .replace(/<script/gi, "<\\x3cscript")
     .replace(/<\/script/gi, "<\\/script")
     .replace(/(^|[^\\])\/\//g, "$1\\/\\/")
@@ -150,6 +151,9 @@ function assertGasSafeHtml(html: string): void {
   }
   if (html.includes("import.meta")) {
     throw new Error("WebApp.html に import.meta が残っています。")
+  }
+  if (html.includes("<?")) {
+    throw new Error("WebApp.html に <? が残っています。")
   }
 }
 
