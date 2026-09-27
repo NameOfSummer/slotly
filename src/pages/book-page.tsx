@@ -65,6 +65,17 @@ function isMajorDurationMark(value: number, min: number, max: number): boolean {
 }
 
 /**
+ * 狭いスライダーでも重ならないラベルにする。
+ * @param value 分。
+ * @param min 最小。
+ * @param max 最大。
+ * @returns ラベルを出すなら true。
+ */
+function isDurationLabelMark(value: number, min: number, max: number): boolean {
+  return value === min || value === max || value % 120 === 0
+}
+
+/**
  * 所要時間を1段階動かす。
  * @param current いまの分。
  * @param durations 選べる分。
@@ -247,19 +258,19 @@ export function BookPage({
                   </div>
                   <div className="relative mt-0.5 h-4 text-[11px] text-muted-foreground">
                     {durations
-                      .filter((min) => isMajorDurationMark(min, durationBound.min, durationBound.max))
+                      .filter((min) => isDurationLabelMark(min, durationBound.min, durationBound.max))
                       .map((min) => {
-                        const shift =
-                          min === durationBound.min
-                            ? ""
-                            : min === durationBound.max
-                              ? "-translate-x-full"
-                              : "-translate-x-1/2"
+                        const atStart = min === durationBound.min
+                        const atEnd = min === durationBound.max
                         return (
                           <span
                             key={min}
-                            className={`absolute whitespace-nowrap ${shift}`}
-                            style={{ left: sliderMarkOffset(min, durationBound.min, durationBound.max) }}
+                            className={`absolute whitespace-nowrap ${atEnd ? "right-0" : atStart ? "left-0" : "-translate-x-1/2"}`}
+                            style={
+                              atStart || atEnd
+                                ? undefined
+                                : { left: sliderMarkOffset(min, durationBound.min, durationBound.max) }
+                            }
                           >
                             {formatDuration(min)}
                           </span>
