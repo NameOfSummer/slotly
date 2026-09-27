@@ -1,5 +1,18 @@
+/**
+ * 日時の整形。
+ */
 const { DateTimeFormat } = Intl;
 
+/**
+ * 指定タイムゾーンの壁時計時刻を UTC の Date にする。
+ * @param year 年。
+ * @param month 月。
+ * @param day 日。
+ * @param hour 時。
+ * @param minute 分。
+ * @param timeZone タイムゾーン。
+ * @returns UTC の日時。
+ */
 function zonedTimeToUtc(year, month, day, hour, minute, timeZone) {
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
   const dtf = new DateTimeFormat('en-CA', {
@@ -27,11 +40,17 @@ function zonedTimeToUtc(year, month, day, hour, minute, timeZone) {
   return new Date(utcGuess - offset2);
 }
 
+/**
+ * 東京 10:00 の変換結果。
+ */
 const tokyo = zonedTimeToUtc(2026, 8, 26, 10, 0, 'Asia/Tokyo');
 if (tokyo.toISOString() !== '2026-08-26T01:00:00.000Z') {
   console.error('Tokyo 10:00 failed', tokyo.toISOString());
   process.exit(1);
 }
+/**
+ * ニューヨーク 10:00 の変換結果。
+ */
 const ny = zonedTimeToUtc(2026, 8, 26, 10, 0, 'America/New_York');
 if (ny.toISOString() !== '2026-08-26T14:00:00.000Z') {
   console.error('NY 10:00 failed', ny.toISOString());

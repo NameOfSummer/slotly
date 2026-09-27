@@ -17,6 +17,15 @@
 
 管理画面は予約一覧ではありません。受付時間やカレンダーの設定だけです。ページ右上の **使い方** から、ゲスト向け・管理向けの手順を見られます。
 
+## 技術スタック
+
+- **実行環境**: [Google Apps Script](https://developers.google.com/apps-script)
+- **画面**: React 19、TypeScript、Vite
+- **UI**: [shadcn/ui](https://ui.shadcn.com/)、Tailwind CSS 4、[Lucide](https://lucide.dev/)
+- **フォント**: LINE Seed JP（本文）、Poiret One（ロゴ）
+- **Google 側**: Calendar API、スプレッドシート（設定の保存）
+- **デプロイ**: clasp、GitHub Actions
+
 ---
 
 ## 導入方法
@@ -63,7 +72,7 @@ clasp push
 
 `clasp create` が `.clasp.json` を作ります。このファイルは Git に含めないでください（他人のプロジェクトを上書きしないため）。
 
-すでに自分の `.clasp.json` があるフォルダでは `clasp create` は不要です。コードを直したあとは `clasp push` だけで更新できます。
+すでに自分の `.clasp.json` があるフォルダでは `clasp create` は不要です。画面を直したあとは `npm run build:gas` してから `clasp push` してください。サーバー側の `.js` だけなら `clasp push` だけで更新できます。
 
 `Exception: 引数が大きすぎます: key` と出る場合は、フォントや背景画像をファイルに埋め込んだ古い版のことがあります。このリポジトリの最新を `git pull` してから、もう一度 `clasp push` してください。
 
@@ -288,15 +297,27 @@ Slotly をアンインストールする専用画面はありません。Google 
 
 ## 開発者向け
 
+画面は React 19 と TypeScript で、Vite と Tailwind CSS 4 を使います。部品は shadcn/ui（radix-nova）、アイコンは Lucide、本文は LINE Seed JP、ロゴは Poiret One です。ソースは `src/` にあり、`npm run build:gas` で `WebApp.html` にまとめます。`WebApp.html` は手で編集しないでください。
+
 クローンしたフォルダで、GAS に上げる前に UI だけ見る場合:
 
 ```bash
 git clone https://github.com/NameOfSummer/slotly.git
 cd slotly
-node tools/preview.mjs
+npm install
+npm run dev
 ```
 
 http://127.0.0.1:3456 が予約画面、`?page=admin` が管理画面です。カレンダー連携はモックです（保存トーストや使い方は本番と同じ UI で確認できます）。
+
+GAS に載せる1枚 HTML を確認するときは、先にビルドしてからプレビューします。
+
+```bash
+npm run build:gas
+npm run preview
+```
+
+画面を変えたあとは、必ず `npm run build:gas` してから `clasp push` してください。`DEPLOY_TARGETS` を置いた自動デプロイも、同じビルドを先に走らせます。
 
 自動デプロイの設定読み取りは、次で確認できます。
 
@@ -304,3 +325,52 @@ http://127.0.0.1:3456 が予約画面、`?page=admin` が管理画面です。�
 node tools/time-test.mjs
 node --test tools/deploy-gas.test.mjs
 ```
+
+## コーディング規約
+
+いまのリポジトリの書き方に合わせる。新しいルールを足さず、既存の形を崩さない。
+
+### 置き場所
+
+- GAS のサーバー処理はルートの `*.js`（`Code.js`、`Booking.js`、`Settings.js`、`Store.js`、`Time.js`、`CalendarIO.js`、`Availability.js`）
+- 画面は `src/`。ページは `src/pages/`、共通部品は `src/components/`、shadcn の部品は `src/components/ui/`、型と API は `src/lib/`
+- `src/` のファイル名はケバブケース（`book-page.tsx`、`page-shell.tsx`、`gas-api.ts`）
+- `WebApp.html` は `npm run build:gas` の出力。手で編集せず、Git にも入れない
+- フォントは CDN から読む。woff を HTML に埋め込まない（`src/fonts.css` / `src/fonts-gas.css`）
+
+### 言語とコメント
+
+- 画面の文言、JSDoc、コミットメッセージは日本語
+- TypeScript は `import type` で型だけを取り込む（`verbatimModuleSyntax`）
+
+### JSDoc
+
+`function` で宣言した関数には JSDoc を付ける。ファイルの直下にある `const` と `type` にも、何の定数・型かを説明する JSDoc を付ける。関数の中で作る定数は対象にしない。GAS は `const` を使わないので、ファイルの直下にある `var` の定数に同じ説明を付ける。説明は日本語にする。`npm run lint` は、次が欠けているとエラーにする。
+
+- 関数、定数、型の説明文
+- 関数で引数があるとき、引数ごとの `@param`
+- 関数の `@returns`。戻り値がない関数も `@returns {void}` と書く
+
+引数がない関数に `@param` は書かない。定数と型には `@param` と `@returns` を書かない。`sort` や `map` に渡す無名関数には付けない。引数をその場で分割代入している関数は、lint 上の引数名が `props` になる。`@param props` と書く。
+
+### TypeScript / React
+
+- `strict`。使っていない変数や引数は残さない
+- 画面と部品は `export function` の名前付きエクスポート。props の型はその場に書く
+- 参照は `@/`（`@/components/page-shell`、`@/lib/booking`）
+- 見た目の部品は shadcn/ui。`cn` は `"cn"` から取る。アイコンは Lucide
+- スタイルは Tailwind のクラス。画面用の CSS モジュールは増やさない
+- 画面を変えたら、ブラウザで操作して確認する
+
+### Google Apps Script
+
+- `var` と `function` で書く（ES5）
+- クライアントから呼ぶ関数はアンダースコアなし（`getPublicConfig`、`getSlots`）
+- 内部用は末尾 `_`（`listDurations_`、`ensureConfigured_`）
+- 文字列はシングルクォート
+- 画面の入口は `HtmlService.createTemplateFromFile('WebApp')`
+
+### コミット
+
+- メッセージは日本語。1行目は「なぜ」を短く書く
+- 秘密情報（`.clasp.json`、管理キー、`.env`）は入れない

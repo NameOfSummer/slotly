@@ -1,0 +1,5 @@
+/* 開発時のフォント。GAS ビルドでは fonts-gas.css に差し替える。 */
+@import url("https://cdn.jsdelivr.net/npm/@fontsource/line-seed-jp@5.3.1/400.css");
+@import url("https://cdn.jsdelivr.net/npm/@fontsource/line-seed-jp@5.3.1/700.css");
+@import url("https://cdn.jsdelivr.net/npm/@fontsource/line-seed-jp@5.3.1/800.css");
+@import url("https://cdn.jsdelivr.net/npm/@fontsource/poiret-one@5.3.0/index.css");

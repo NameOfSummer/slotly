@@ -1,3 +1,8 @@
+/**
+ * カレンダーに予定を入れる。
+ * @param opts 予定の内容。
+ * @returns 予定 ID と Meet URL。
+ */
 function insertCalendarEvent_(opts) {
   var calendarId = opts.calendarId || 'primary';
   if (typeof Calendar !== 'undefined' && Calendar.Events) {
@@ -17,6 +22,12 @@ function insertCalendarEvent_(opts) {
   return insertViaCalendarApp_(opts, calendarId);
 }
 
+/**
+ * Calendar API で予定を入れる。
+ * @param opts 予定の内容。
+ * @param calendarId 書き込み先。
+ * @returns 予定 ID と Meet URL。
+ */
 function insertViaCalendarApi_(opts, calendarId) {
   var resource = {
     summary: opts.title,
@@ -48,6 +59,12 @@ function insertViaCalendarApi_(opts, calendarId) {
   };
 }
 
+/**
+ * CalendarApp で予定を入れる。
+ * @param opts 予定の内容。
+ * @param calendarId 書き込み先。
+ * @returns 予定 ID。
+ */
 function insertViaCalendarApp_(opts, calendarId) {
   var cal = calendarId === 'primary'
     ? CalendarApp.getDefaultCalendar()
@@ -66,6 +83,11 @@ function insertViaCalendarApp_(opts, calendarId) {
   };
 }
 
+/**
+ * 予定から Meet URL を取る。
+ * @param event カレンダー予定。
+ * @returns Meet URL。なければ空。
+ */
 function extractMeetUrl_(event) {
   var points = (((event || {}).conferenceData || {}).entryPoints) || [];
   for (var i = 0; i < points.length; i++) {
@@ -74,6 +96,12 @@ function extractMeetUrl_(event) {
   return event.hangoutLink || '';
 }
 
+/**
+ * カレンダー予定を消す。
+ * @param calendarId カレンダー。
+ * @param eventId 予定。
+ * @returns {void}
+ */
 function cancelCalendarEvent_(calendarId, eventId) {
   if (!eventId) return;
   if (typeof Calendar !== 'undefined' && Calendar.Events) {

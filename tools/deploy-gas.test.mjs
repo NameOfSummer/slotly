@@ -2,8 +2,16 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parseConfig, parseDeploymentList, pickDeploymentId } from './deploy-gas.mjs';
 
+/**
+ * テスト用の clasp ログイン情報。
+ */
 const clasprc = { tokens: { default: { access_token: 'test' } } };
 
+/**
+ * 1件のデプロイ先を含む設定を作る。
+ * @param target 上書きする項目。
+ * @returns 設定。
+ */
 function config(target) {
   return {
     accounts: { main: clasprc, other: clasprc },

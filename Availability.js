@@ -1,7 +1,16 @@
+/**
+ * 空きキャッシュを無効にする世代番号を返す。
+ * @returns 世代。
+ */
 function cacheStamp_() {
   return getScriptProps_().getProperty('BUSY_GEN') || '1';
 }
 
+/**
+ * 予約できる開始時刻を列挙する。
+ * @param durationMin 所要時間。
+ * @returns タイムゾーンと開始時刻。
+ */
 function listAvailableStarts_(durationMin) {
   durationMin = assertDuration_(durationMin);
   var settings = getSettings_();
@@ -42,6 +51,14 @@ function listAvailableStarts_(durationMin) {
   return { timezone: tz, durationMin: durationMin, starts: starts };
 }
 
+/**
+ * 予定やバッファと重なるか。
+ * @param start 開始。
+ * @param end 終了。
+ * @param busy 既存の予定。
+ * @param bufferMin 前後のバッファ。
+ * @returns 埋まっていれば true。
+ */
 function isBlocked_(start, end, busy, bufferMin) {
   var pad = (bufferMin || 0) * 60 * 1000;
   for (var i = 0; i < busy.length; i++) {
@@ -52,6 +69,11 @@ function isBlocked_(start, end, busy, bufferMin) {
   return false;
 }
 
+/**
+ * 空きキャッシュのキーを短くする。
+ * @param raw 元のキー。
+ * @returns キャッシュキー。
+ */
 function shortCacheKey_(raw) {
   var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_1, raw);
   var hex = '';
@@ -64,6 +86,13 @@ function shortCacheKey_(raw) {
   return 'busy:' + hex;
 }
 
+/**
+ * 期間内の予定ブロックを返す。
+ * @param settings 設定。
+ * @param windowStart 期間の始まり。
+ * @param windowEnd 期間の終わり。
+ * @returns 予定の開始と終了。
+ */
 function getBusyBlocks_(settings, windowStart, windowEnd) {
   var ids = settings.busyCalendarIds || [];
   var cache = CacheService.getScriptCache();
@@ -92,6 +121,13 @@ function getBusyBlocks_(settings, windowStart, windowEnd) {
   return busy;
 }
 
+/**
+ * カレンダーから予定を取る。
+ * @param calendarIds カレンダー。
+ * @param windowStart 期間の始まり。
+ * @param windowEnd 期間の終わり。
+ * @returns 予定の開始と終了。
+ */
 function queryBusy_(calendarIds, windowStart, windowEnd) {
   if (typeof Calendar !== 'undefined' && Calendar.Freebusy) {
     try {
@@ -103,6 +139,13 @@ function queryBusy_(calendarIds, windowStart, windowEnd) {
   return queryBusyViaCalendarApp_(calendarIds, windowStart, windowEnd);
 }
 
+/**
+ * FreeBusy API で予定を取る。
+ * @param calendarIds カレンダー。
+ * @param windowStart 期間の始まり。
+ * @param windowEnd 期間の終わり。
+ * @returns 予定の開始と終了。
+ */
 function queryFreeBusy_(calendarIds, windowStart, windowEnd) {
   var res = Calendar.Freebusy.query({
     timeMin: windowStart.toISOString(),
@@ -119,6 +162,13 @@ function queryFreeBusy_(calendarIds, windowStart, windowEnd) {
   return busy;
 }
 
+/**
+ * CalendarApp で予定を取る。
+ * @param calendarIds カレンダー。
+ * @param windowStart 期間の始まり。
+ * @param windowEnd 期間の終わり。
+ * @returns 予定の開始と終了。
+ */
 function queryBusyViaCalendarApp_(calendarIds, windowStart, windowEnd) {
   var busy = [];
   calendarIds.forEach(function (id) {
@@ -134,6 +184,12 @@ function queryBusyViaCalendarApp_(calendarIds, windowStart, windowEnd) {
   return busy;
 }
 
+/**
+ * その開始時刻がまだ空いているか。
+ * @param durationMin 所要時間。
+ * @param startIso 開始時刻。
+ * @returns 空いていれば true。
+ */
 function slotStillFree_(durationMin, startIso) {
   var starts = listAvailableStarts_(durationMin).starts;
   return starts.indexOf(startIso) !== -1;

@@ -1,3 +1,8 @@
+/**
+ * 予約を作り、確認メールを送る。
+ * @param payload 予約内容。
+ * @returns 公開用の予約。
+ */
 function createBooking_(payload) {
   payload = payload || {};
   var durationMin = assertDuration_(payload.durationMin);
@@ -89,6 +94,11 @@ function createBooking_(payload) {
   }
 }
 
+/**
+ * 公開用の予約を1件返す。
+ * @param token 予約トークン。
+ * @returns 公開用の予約。
+ */
 function getPublicBooking_(token) {
   var found = findBookingRow_(token);
   if (!found) throw new Error('予約が見つかりません。');
@@ -100,6 +110,11 @@ function getPublicBooking_(token) {
   });
 }
 
+/**
+ * 予約をキャンセルする。
+ * @param token 予約トークン。
+ * @returns 公開用の予約。
+ */
 function cancelBooking_(token) {
   var found = findBookingRow_(token);
   if (!found) throw new Error('予約が見つかりません。');
@@ -128,6 +143,12 @@ function cancelBooking_(token) {
   }
 }
 
+/**
+ * ゲストに見せる予約の形にする。
+ * @param booking 予約。
+ * @param urls 関連 URL。
+ * @returns 公開用の予約。
+ */
 function publicBookingView_(booking, urls) {
   urls = urls || {};
   return {
@@ -148,10 +169,20 @@ function publicBookingView_(booking, urls) {
   };
 }
 
+/**
+ * カレンダー予定のタイトルを作る。
+ * @param guestName 予約者名。
+ * @returns タイトル。
+ */
 function buildEventTitle_(guestName) {
   return guestName + ' さんとのミーティング（Slotly）';
 }
 
+/**
+ * カレンダー予定の説明を作る。
+ * @param info 予約者情報。
+ * @returns 説明。
+ */
 function buildEventDescription_(info) {
   var lines = [];
   if (info.name) lines.push('予約者: ' + info.name);
@@ -163,6 +194,11 @@ function buildEventDescription_(info) {
   return lines.join('\n');
 }
 
+/**
+ * Google カレンダー追加用の URL を作る。
+ * @param booking 予約。
+ * @returns URL。
+ */
 function googleTemplateUrl_(booking) {
   var start = new Date(booking.startIso);
   var end = new Date(booking.endIso);
@@ -180,6 +216,11 @@ function googleTemplateUrl_(booking) {
   return 'https://calendar.google.com/calendar/render?' + params.join('&');
 }
 
+/**
+ * Google カレンダー用の詳細文を作る。
+ * @param booking 予約。
+ * @returns 詳細。
+ */
 function buildGoogleDetails_(booking) {
   return buildEventDescription_({
     name: booking.guestName,
@@ -188,6 +229,11 @@ function buildGoogleDetails_(booking) {
   });
 }
 
+/**
+ * ICS ファイルを返す。
+ * @param token 予約トークン。
+ * @returns ICS またはエラー文言。
+ */
 function serveIcs_(token) {
   var found = findBookingRow_(token);
   if (!found || found.data.status === 'cancelled') {
@@ -198,6 +244,11 @@ function serveIcs_(token) {
     .downloadAsFile('slotly.ics');
 }
 
+/**
+ * ICS 本文を作る。
+ * @param booking 予約。
+ * @returns ICS。
+ */
 function buildIcs_(booking) {
   var start = new Date(booking.startIso);
   var end = new Date(booking.endIso);
@@ -224,6 +275,12 @@ function buildIcs_(booking) {
   return lines.join('\r\n');
 }
 
+/**
+ * メール用の予約概要 HTML を作る。
+ * @param booking 予約。
+ * @param when 日時の表示。
+ * @returns HTML。
+ */
 function bookingSummaryHtml_(booking, when) {
   var lines = [];
   lines.push('------------------------------');
@@ -239,12 +296,23 @@ function bookingSummaryHtml_(booking, when) {
   return lines.join('');
 }
 
+/**
+ * 場所をプレーンテキストにする。
+ * @param withMeet Meet を使うか。
+ * @param meetUrl Meet URL。
+ * @returns 場所。
+ */
 function formatLocationPlain_(withMeet, meetUrl) {
   if (!withMeet) return 'Meetなし';
   if (meetUrl) return 'Google Meet (' + meetUrl + ')';
   return 'Google Meet';
 }
 
+/**
+ * 場所を HTML にする。
+ * @param booking 予約。
+ * @returns HTML。
+ */
 function formatLocationHtml_(booking) {
   if (!booking.withMeet) return 'Meetなし';
   if (booking.meetUrl) {
@@ -254,6 +322,12 @@ function formatLocationHtml_(booking) {
   return 'Google Meet';
 }
 
+/**
+ * 確定メールを送る。
+ * @param booking 予約。
+ * @param urls 関連 URL。
+ * @returns {void}
+ */
 function sendGuestEmail_(booking, urls) {
   var when = formatRangeJa_(booking.startIso, booking.endIso);
   var html = [
@@ -274,6 +348,11 @@ function sendGuestEmail_(booking, urls) {
   }
 }
 
+/**
+ * キャンセルメールを送る。
+ * @param booking 予約。
+ * @returns {void}
+ */
 function sendCancelEmail_(booking) {
   var when = formatRangeJa_(booking.startIso, booking.endIso);
   try {
@@ -290,6 +369,12 @@ function sendCancelEmail_(booking) {
   }
 }
 
+/**
+ * 開始と終了を日本語の期間にする。
+ * @param startIso 開始。
+ * @param endIso 終了。
+ * @returns 期間。
+ */
 function formatRangeJa_(startIso, endIso) {
   var start = new Date(startIso);
   var end = new Date(endIso);
@@ -313,6 +398,11 @@ function formatRangeJa_(startIso, endIso) {
   return dtf.format(start) + ' – ' + endTime.format(end);
 }
 
+/**
+ * HTML をエスケープする。
+ * @param text 原文。
+ * @returns エスケープ後。
+ */
 function escapeHtml_(text) {
   return String(text || '')
     .replace(/&/g, '&amp;')
@@ -321,6 +411,10 @@ function escapeHtml_(text) {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * 空きキャッシュを無効にする。
+ * @returns {void}
+ */
 function clearBusyCache_() {
   getScriptProps_().setProperty('BUSY_GEN', String(Date.now()));
 }

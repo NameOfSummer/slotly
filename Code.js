@@ -1,5 +1,13 @@
+/**
+ * アプリ名。
+ */
 var APP_NAME = 'Slotly';
 
+/**
+ * 画面タイトルを返す。
+ * @param page 画面。
+ * @returns タイトル。
+ */
 function pageTitle_(page) {
   var suffix = '予約';
   if (page === 'done') suffix = '予約確定';
@@ -8,6 +16,11 @@ function pageTitle_(page) {
   return APP_NAME + ' - ' + suffix;
 }
 
+/**
+ * ウェブアプリの入口。
+ * @param e リクエスト。
+ * @returns HTML または ICS。
+ */
 function doGet(e) {
   e = e || { parameter: {} };
   var page = e.parameter.page || 'book';
@@ -17,7 +30,7 @@ function doGet(e) {
     return serveIcs_(token);
   }
 
-  var template = HtmlService.createTemplateFromFile('Index');
+  var template = HtmlService.createTemplateFromFile('WebApp');
   var title = pageTitle_(page);
   template.pageTitle = title;
   template.bootstrapJson = JSON.stringify({
@@ -34,10 +47,19 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+/**
+ * HTML ファイルの中身を差し込む。
+ * @param filename ファイル名。
+ * @returns ファイルの中身。
+ */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+/**
+ * 公開中のウェブアプリ URL を返す。
+ * @returns URL。取れなければ空。
+ */
 function webAppUrl_() {
   try {
     return ScriptApp.getService().getUrl() || '';
@@ -48,6 +70,7 @@ function webAppUrl_() {
 
 /**
  * エディタから一度だけ実行する。管理キーと予約データシートを作る。
+ * @returns 管理キーとシート情報。
  */
 function setupSlotly() {
   var result = initializeSlotly_();
@@ -59,6 +82,10 @@ function setupSlotly() {
   return result;
 }
 
+/**
+ * 予約画面用の公開設定を返す。
+ * @returns 公開設定。
+ */
 function getPublicConfig() {
   ensureConfigured_();
   var settings = getSettings_();
@@ -74,24 +101,49 @@ function getPublicConfig() {
   };
 }
 
+/**
+ * 空き開始時刻の一覧を返す。
+ * @param durationMin 所要時間。
+ * @returns 空き枠。
+ */
 function getSlots(durationMin) {
   ensureConfigured_();
   return listAvailableStarts_(Number(durationMin));
 }
 
+/**
+ * 予約を作成する。
+ * @param payload 予約内容。
+ * @returns 確定した予約。
+ */
 function createBooking(payload) {
   ensureConfigured_();
   return createBooking_(payload);
 }
 
+/**
+ * 予約を1件返す。
+ * @param token 予約トークン。
+ * @returns 予約。
+ */
 function getBooking(token) {
   return getPublicBooking_(token);
 }
 
+/**
+ * 予約をキャンセルする。
+ * @param token 予約トークン。
+ * @returns キャンセル後の予約。
+ */
 function cancelBooking(token) {
   return cancelBooking_(token);
 }
 
+/**
+ * 管理画面の設定とカレンダー一覧を返す。
+ * @param key 管理キー。
+ * @returns 設定とカレンダー。
+ */
 function adminGetState(key) {
   assertAdminKey_(key);
   var settings = getSettings_();
@@ -102,6 +154,12 @@ function adminGetState(key) {
   };
 }
 
+/**
+ * 管理設定を保存する。
+ * @param key 管理キー。
+ * @param patch 保存する内容。
+ * @returns 保存後の設定。
+ */
 function adminSaveSettings(key, patch) {
   assertAdminKey_(key);
   return saveSettings_(patch);
