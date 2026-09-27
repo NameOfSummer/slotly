@@ -37,7 +37,15 @@ export default defineConfig(({ mode }) => {
           outDir: "gas-dist",
           emptyOutDir: true,
           cssCodeSplit: false,
-          assetsInlineLimit: 1024 * 1024,
+          assetsInlineLimit: 3 * 1024 * 1024,
+          modulePreload: false,
+          rollupOptions: {
+            output: {
+              format: "iife",
+              name: "slotly",
+              inlineDynamicImports: true,
+            },
+          },
         }
       : undefined,
   }
@@ -79,6 +87,7 @@ function gasHtmlPlugin(projectRoot: string): Plugin {
         return
       }
       const html = inlineBuiltHtml(fs.readFileSync(htmlPath, "utf8"), outDir)
+      assertGasSafeHtml(html)
       fs.writeFileSync(path.resolve(projectRoot, "WebApp.html"), html)
     },
   }
@@ -101,27 +110,47 @@ function inlineBuiltHtml(html: string, outDir: string): string {
     }
   )
   next = next.replace(
-    /<script type="module"[^>]*src="([^"]+)"><\/script>\s*/g,
+    /<script(?![^>]*type=["']application\/json["'])[^>]*src="([^"]+)"[^>]*><\/script>\s*/g,
     (_match, href: string) => {
       script = `<script>${escapeForGasScript(readBuiltFile(outDir, href))}</script>`
       return ""
     }
   )
-  if (script) {
-    next = next.replace("</body>", () => `${script}\n  </body>`)
+  if (!script) {
+    throw new Error("GAS 用に埋め込むスクリプトが見つかりません。")
   }
+  next = next.replace("</body>", () => `${script}\n  </body>`)
   return next
 }
 
 /**
- * Apps Script が // を行コメントとして切らないよう、スラッシュをエスケープする。
+ * Apps Script の document.write でも動くよう、モジュール構文と script タグを除く。
  * @param js 埋め込むスクリプト。
  * @returns 画面に載せられるスクリプト。
  */
 function escapeForGasScript(js: string): string {
   return js
+    .replace(/\bimport\.meta\b/g, "undefined")
+    .replace(/<script/gi, "<\\x3cscript")
     .replace(/<\/script/gi, "<\\/script")
     .replace(/(^|[^\\])\/\//g, "$1\\/\\/")
+}
+
+/**
+ * GAS ではモジュールスクリプトを document.write できない。
+ * @param html まとめた HTML。
+ * @returns {void}
+ */
+function assertGasSafeHtml(html: string): void {
+  if (/<script[^>]*type=["']module["']/.test(html)) {
+    throw new Error('WebApp.html に type="module" が残っています。')
+  }
+  if (/<script[^>]*\ssrc=/.test(html)) {
+    throw new Error("WebApp.html に外部スクリプトが残っています。")
+  }
+  if (html.includes("import.meta")) {
+    throw new Error("WebApp.html に import.meta が残っています。")
+  }
 }
 
 /**
