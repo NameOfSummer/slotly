@@ -38,9 +38,8 @@ function renderPage(page, token) {
     return `<!DOCTYPE html><html lang="ja"><body><p>先に <code>npm run build:gas</code> を実行してください。</p></body></html>`;
   }
   let html = fs.readFileSync(WEB_APP, 'utf8');
-  html = html.replace(/<\?!= pageTitle \?>/g, pageTitle(page));
-  html = html.replace(
-    /<\?!= bootstrapJson \?>/g,
+  html = html.split('__SLOTL_PAGE_TITLE__').join(pageTitle(page));
+  html = html.split('__SLOTL_BOOTSTRAP__').join(
     JSON.stringify({
       page: page,
       token: token,

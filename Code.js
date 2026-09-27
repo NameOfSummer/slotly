@@ -30,18 +30,28 @@ function doGet(e) {
     return serveIcs_(token);
   }
 
-  var template = HtmlService.createTemplateFromFile('WebApp');
+  return renderWebApp_(page, token);
+}
+
+/**
+ * WebApp.html に画面情報を入れて返す。
+ * @param page 画面。
+ * @param token 予約トークン。
+ * @returns HTML。
+ */
+function renderWebApp_(page, token) {
   var title = pageTitle_(page);
-  template.pageTitle = title;
-  template.bootstrapJson = JSON.stringify({
+  var bootstrapJson = JSON.stringify({
     page: page,
     token: token,
     adminKey: page === 'admin' ? e.parameter.key || '' : '',
     webAppUrl: webAppUrl_(),
   });
-
-  return template
-    .evaluate()
+  var html = HtmlService.createHtmlOutputFromFile('WebApp')
+    .getContent()
+    .split('__SLOTL_PAGE_TITLE__').join(title)
+    .split('__SLOTL_BOOTSTRAP__').join(bootstrapJson);
+  return HtmlService.createHtmlOutput(html)
     .setTitle(title)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');

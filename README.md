@@ -368,7 +368,7 @@ node --test tools/deploy-gas.test.mjs
 - クライアントから呼ぶ関数はアンダースコアなし（`getPublicConfig`、`getSlots`）
 - 内部用は末尾 `_`（`listDurations_`、`ensureConfigured_`）
 - 文字列はシングルクォート
-- 画面の入口は `HtmlService.createTemplateFromFile('WebApp')`
+- 画面の入口は `HtmlService.createHtmlOutputFromFile('WebApp')`。タイトルと初期値は文字列置換する（`<?` テンプレートは使わない）
 
 ### コミット
 
