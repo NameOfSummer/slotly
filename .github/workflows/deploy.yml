@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gas-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/time-test.mjs
+      - run: node --test tools/deploy-gas.test.mjs
+      - name: Apps Script へ載せる
+        env:
+          DEPLOY_TARGETS: ${{ secrets.DEPLOY_TARGETS }}
+        run: node tools/deploy-gas.mjs
