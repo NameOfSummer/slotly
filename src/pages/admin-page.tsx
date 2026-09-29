@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react"
+import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react"
 import { Copy, Plus, Trash2, X } from "lucide-react"
 
 import { FieldLabel } from "@/components/field-label"
@@ -372,16 +372,54 @@ function NumberField({
   value: number
   onChange: (value: number) => void
 }) {
+  const shown = Number.isFinite(value) ? String(value) : ""
+  const [draft, setDraft] = useState(shown)
+  const [focused, setFocused] = useState(false)
+
+  useEffect(() => {
+    if (!focused) setDraft(shown)
+  }, [focused, shown])
+
+  const commit = (raw: string) => {
+    if (raw.trim() === "" || !Number.isFinite(Number(raw))) {
+      setDraft(shown)
+      return
+    }
+    let next = Number(raw)
+    if (min != null) next = Math.max(min, next)
+    if (max != null) next = Math.min(max, next)
+    onChange(next)
+    setDraft(String(next))
+  }
+
   return (
     <div>
       <FieldLabel text={label} htmlFor={id} hint={hint} />
       <Input
         id={id}
-        type="number"
-        min={min}
-        max={max}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(event) => onChange(Number(event.target.value))}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        value={draft}
+        onFocus={() => setFocused(true)}
+        onChange={(event) => {
+          const next = event.target.value
+          if (next !== "" && !/^\d*$/.test(next)) return
+          setDraft(next)
+          if (next === "") return
+          onChange(Number(next))
+        }}
+        onBlur={(event) => {
+          commit(event.currentTarget.value)
+          setFocused(false)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            commit(event.currentTarget.value)
+            event.currentTarget.blur()
+          }
+        }}
       />
     </div>
   )
