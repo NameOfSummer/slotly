@@ -60,13 +60,35 @@ function getSettings_() {
 }
 
 /**
+ * 画面から来た設定をオブジェクトにする。
+ * @param patch 設定。JSON 文字列でもよい。
+ * @returns 設定オブジェクト。
+ */
+function parseClientPatch_(patch) {
+  if (patch == null || patch === '') return {};
+  if (typeof patch === 'string') {
+    try {
+      var parsed = JSON.parse(patch);
+      if (!parsed || typeof parsed !== 'object' || Object.prototype.toString.call(parsed) === '[object Array]') {
+        throw new Error('設定の内容が正しくありません。');
+      }
+      return parsed;
+    } catch (err) {
+      if (err && err.message && err.message.indexOf('設定の内容') === 0) throw err;
+      throw new Error('設定の内容が正しくありません。');
+    }
+  }
+  return patch;
+}
+
+/**
  * 設定を保存する。
  * @param patch 上書きする内容。
  * @returns 保存後の設定。
  */
 function saveSettings_(patch) {
   var current = getSettings_();
-  var next = Object.assign({}, current, patch || {});
+  var next = Object.assign({}, current, parseClientPatch_(patch));
   if (!next.writeCalendarId) {
     throw new Error('予定を書き込むカレンダーを選んでください。');
   }

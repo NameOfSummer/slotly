@@ -168,7 +168,7 @@ function adminGetState(key) {
 /**
  * 管理設定を保存する。
  * @param key 管理キー。
- * @param patch 保存する内容。
+ * @param patch 保存する内容。JSON 文字列でもよい。
  * @returns 保存後の設定。
  */
 function adminSaveSettings(key, patch) {

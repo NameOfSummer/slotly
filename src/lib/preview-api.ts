@@ -261,7 +261,10 @@ export function installPreviewApi(): void {
         { id: "work", name: "仕事", primary: false },
       ],
     }),
-    adminSaveSettings: (_key: string, patch: AdminSettings) => {
+    adminSaveSettings: (_key: string, patch: AdminSettings | string) => {
+      if (typeof patch === "string") {
+        patch = JSON.parse(patch) as AdminSettings
+      }
       if (patch?.writeCalendarId) {
         const calIds: Record<string, boolean> = { primary: true, private: true, work: true }
         if (!calIds[patch.writeCalendarId]) {
