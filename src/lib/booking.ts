@@ -19,6 +19,11 @@ export const WEEK_KEYS = [
 ] as const
 
 /**
+ * 何日先まで予約できるかの上限。1年。
+ */
+export const MAX_DAYS_AHEAD = 365
+
+/**
  * 所要時間を表示用の文言にする。
  * @param min 分。
  * @returns 分または時間の表示。

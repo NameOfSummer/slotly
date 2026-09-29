@@ -98,7 +98,7 @@ function saveSettings_(patch) {
   next.busyCalendarIds = assertCalendarsExist_(next.writeCalendarId, next.busyCalendarIds);
   next.bufferMin = Math.max(0, Number(next.bufferMin) || 0);
   next.minNoticeMin = Math.max(0, Number(next.minNoticeMin) || 0);
-  next.maxDaysAhead = Math.min(90, Math.max(1, Number(next.maxDaysAhead) || 28));
+  next.maxDaysAhead = Math.min(MAX_DAYS_AHEAD, Math.max(1, Number(next.maxDaysAhead) || 28));
   next.timezone = next.timezone || 'Asia/Tokyo';
   next.allowedEmailDomains = normalizeEmailDomains_(next.allowedEmailDomains);
   assertWeekHoursValid_(next.weekHours);

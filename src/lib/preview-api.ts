@@ -1,3 +1,4 @@
+import { MAX_DAYS_AHEAD } from "@/lib/booking"
 import { gasRun } from "@/lib/gas-api"
 import type { AdminSettings, CreateBookingPayload, HourRange, PublicBooking } from "@/lib/types"
 
@@ -137,7 +138,11 @@ export function installPreviewApi(): void {
     const out: string[] = []
     const now = Date.now()
     const weekHours = previewSettings.weekHours || defaultWeekHours
-    for (let i = 0; i < 28; i += 1) {
+    const days = Math.min(
+      MAX_DAYS_AHEAD,
+      Math.max(1, Number(previewSettings.maxDaysAhead) || 28)
+    )
+    for (let i = 0; i < days; i += 1) {
       const seed = new Date(now + i * 86400000)
       const ymd = new Intl.DateTimeFormat("en-CA", {
         timeZone: tz,
@@ -298,6 +303,10 @@ export function installPreviewApi(): void {
         }
       }
       previewSettings = { ...previewSettings, ...patch }
+      previewSettings.maxDaysAhead = Math.min(
+        MAX_DAYS_AHEAD,
+        Math.max(1, Number(previewSettings.maxDaysAhead) || 28)
+      )
       if (previewSettings.allowedEmailDomains != null) {
         const raw = previewSettings.allowedEmailDomains
         const text = Array.isArray(raw) ? raw.join("\n") : String(raw || "")
