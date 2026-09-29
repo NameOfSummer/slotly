@@ -30,21 +30,22 @@ function doGet(e) {
     return serveIcs_(token);
   }
 
-  return renderWebApp_(page, token);
+  return renderWebApp_(page, token, page === 'admin' ? e.parameter.key || '' : '');
 }
 
 /**
  * WebApp.html に画面情報を入れて返す。
  * @param page 画面。
  * @param token 予約トークン。
+ * @param adminKey 管理キー。管理画面以外は空。
  * @returns HTML。
  */
-function renderWebApp_(page, token) {
+function renderWebApp_(page, token, adminKey) {
   var title = pageTitle_(page);
   var bootstrapJson = JSON.stringify({
     page: page,
     token: token,
-    adminKey: page === 'admin' ? e.parameter.key || '' : '',
+    adminKey: adminKey || '',
     webAppUrl: webAppUrl_(),
   });
   var html = HtmlService.createHtmlOutputFromFile('WebApp')
