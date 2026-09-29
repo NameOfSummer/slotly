@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react"
+import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react"
 import { Copy, Plus, Trash2, X } from "lucide-react"
 
 import { FieldLabel } from "@/components/field-label"
@@ -376,10 +376,6 @@ function NumberField({
   const [draft, setDraft] = useState(shown)
   const [focused, setFocused] = useState(false)
 
-  useEffect(() => {
-    if (!focused) setDraft(shown)
-  }, [focused, shown])
-
   const commit = (raw: string) => {
     if (raw.trim() === "" || !Number.isFinite(Number(raw))) {
       setDraft(shown)
@@ -400,8 +396,11 @@ function NumberField({
         type="text"
         inputMode="numeric"
         autoComplete="off"
-        value={draft}
-        onFocus={() => setFocused(true)}
+        value={focused ? draft : shown}
+        onFocus={() => {
+          setDraft(shown)
+          setFocused(true)
+        }}
         onChange={(event) => {
           const next = event.target.value
           if (next !== "" && !/^\d*$/.test(next)) return
