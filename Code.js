@@ -1,7 +1,7 @@
 /**
  * アプリ名。
  */
-var APP_NAME = 'Slotly';
+var APP_NAME = 'TimePick';
 
 /**
  * 画面タイトルを返す。
@@ -83,14 +83,22 @@ function webAppUrl_() {
  * エディタから一度だけ実行する。管理キーと予約データシートを作る。
  * @returns 管理キーとシート情報。
  */
-function setupSlotly() {
+function setupTimePick() {
   var result = initializeSlotly_();
-  Logger.log('===== Slotly セットアップ完了 =====');
+  Logger.log('===== TimePick セットアップ完了 =====');
   Logger.log('管理キー: ' + result.adminKey);
   Logger.log('予約データ: ' + result.spreadsheetUrl);
   Logger.log('Webアプリをデプロイしたあと、次のURLで管理画面を開く:');
   Logger.log('(デプロイURL)?page=admin&key=' + result.adminKey);
   return result;
+}
+
+/**
+ * 旧名。setupTimePick と同じ。
+ * @returns 管理キーとシート情報。
+ */
+function setupSlotly() {
+  return setupTimePick();
 }
 
 /**

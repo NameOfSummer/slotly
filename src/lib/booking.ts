@@ -19,6 +19,11 @@ export const WEEK_KEYS = [
 ] as const
 
 /**
+ * 画面とメールに出すアプリ名。
+ */
+export const APP_NAME = "TimePick"
+
+/**
  * 何日先まで予約できるかの上限。1年。
  */
 export const MAX_DAYS_AHEAD = 365

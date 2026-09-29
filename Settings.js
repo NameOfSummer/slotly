@@ -116,7 +116,7 @@ function saveSettings_(patch) {
 function assertAdminKey_(key) {
   var expected = getScriptProps_().getProperty(ADMIN_KEY_PROP);
   if (!expected || String(key || '') !== expected) {
-    throw new Error('管理キーが正しくありません。setupSlotly をエディタから実行してください。');
+    throw new Error('管理キーが正しくありません。setupTimePick をエディタから実行してください。');
   }
 }
 
@@ -129,7 +129,7 @@ function ensureConfigured_() {
   var sheetId = getScriptProps_().getProperty(SHEET_ID_PROP);
   var adminKey = getScriptProps_().getProperty(ADMIN_KEY_PROP);
   if (!sheetId || !adminKey || !settings.writeCalendarId) {
-    throw new Error('まだ準備できていません。Apps Script エディタで setupSlotly を実行してください。');
+    throw new Error('まだ準備できていません。Apps Script エディタで setupTimePick を実行してください。');
   }
 }
 
@@ -155,7 +155,7 @@ function initializeSlotly_() {
     }
   }
   if (!ss) {
-    ss = SpreadsheetApp.create('Slotly 予約データ');
+    ss = SpreadsheetApp.create('TimePick 予約データ');
     props.setProperty(SHEET_ID_PROP, ss.getId());
   }
   ensureBookingsSheet_(ss);

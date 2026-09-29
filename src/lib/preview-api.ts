@@ -1,4 +1,4 @@
-import { MAX_DAYS_AHEAD } from "@/lib/booking"
+import { APP_NAME, MAX_DAYS_AHEAD } from "@/lib/booking"
 import { gasRun } from "@/lib/gas-api"
 import type { AdminSettings, CreateBookingPayload, HourRange, PublicBooking } from "@/lib/types"
 
@@ -106,7 +106,7 @@ export function installPreviewApi(): void {
 
   let store: PreviewStore
   try {
-    store = JSON.parse(sessionStorage.getItem("slotly-preview") || '{"busy":{},"bookings":{}}')
+    store = JSON.parse(sessionStorage.getItem("timepick-preview") || '{"busy":{},"bookings":{}}')
   } catch {
     store = { busy: {}, bookings: {}, settings: null }
   }
@@ -128,7 +128,7 @@ export function installPreviewApi(): void {
 
   const persist = () => {
     sessionStorage.setItem(
-      "slotly-preview",
+      "timepick-preview",
       JSON.stringify({ busy, bookings, settings: previewSettings })
     )
   }
@@ -184,7 +184,7 @@ export function installPreviewApi(): void {
   const impl = {
     getPublicConfig: () => ({
       configured: true,
-      appName: "Slotly",
+      appName: APP_NAME,
       hostName: typeof previewSettings.hostName === "string" ? previewSettings.hostName : "デモ",
       timezone: "Asia/Tokyo",
       durations: Array.from({ length: 16 }, (_, index) => 15 + index * 15),
@@ -227,7 +227,7 @@ export function installPreviewApi(): void {
       const row: PublicBooking = {
         token,
         status: "confirmed",
-        title: eventTitle || `${payload.name} さんとのミーティング（Slotly）`,
+        title: eventTitle || `${payload.name} さんとのミーティング（${APP_NAME}）`,
         guestName: payload.name,
         guestEmail: payload.email,
         startIso: start.toISOString(),
